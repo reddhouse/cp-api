@@ -14,38 +14,26 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+// Global database variable and related error.
 var db *bolt.DB
 var dbErr error
 
+// Global utilities variables and associated interfaces.
+var boltU Bolt_Utils
+
+type IdSetter interface {
+	SetId(id int)
+}
+
+// Primary types and related methods.
 type User struct {
 	Id    int    `json:"id"`
 	Email string `json:"email"`
 }
 
-func createUser(u *User) int {
-	var id uint64
-	err := db.Update(func(tx *bolt.Tx) error {
-		// Retrieve the USER bucket.
-		b := tx.Bucket([]byte("USER"))
-		// Generate ID for this user.
-		// This returns an error only if the Tx is closed or not writeable.
-		// That can't happen in an Update() call so ignore the error check.
-		id, _ = b.NextSequence()
-		u.Id = int(id)
-
-		// Marshal user struct into JSON (byte slice).
-		buf, err := json.Marshal(u)
-		if err != nil {
-			return err
-		}
-
-		// Persist bytes to USER bucket.
-		return b.Put(itob(u.Id), buf)
-	})
-	if err != nil {
-		log.Fatalf("failed to persist user to db: %v", err)
-	}
-	return int(id)
+// Implement the IdSetter interface for the User struct.
+func (u *User) SetId(id int) {
+	u.Id = id
 }
 
 func handleSignup(w http.ResponseWriter, req *http.Request) {
@@ -78,10 +66,10 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Create user in database.
-	userId := createUser(&u)
+	boltU.writeSequentially("USER", &u)
 
 	// Marshal response struct into JSON response payload.
-	js, err := json.Marshal(response{UserId: userId})
+	js, err := json.Marshal(response{UserId: u.Id})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -178,6 +166,9 @@ func main() {
 		log.Fatalf("failed to update database: %v", dbErr)
 	}
 
+	// Instantiate Bolt_Utils struct.
+	boltU = Bolt_Utils{db: db}
+
 	// Create HTTP request multiplexer and register the handler functions.
 	mux := http.NewServeMux()
 
@@ -196,6 +187,7 @@ func main() {
 
 	fmt.Println("Starting server on port 8000...")
 
+	// Serve it up.
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatalf("failed to start server: %v", err)
 	}
