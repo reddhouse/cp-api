@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"mime"
 	"net/http"
 	"os"
 	"time"
@@ -14,60 +13,53 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// Global database variable and related error.
+/*
+Global database variable and related error.
+*/
 var db *bolt.DB
 var dbErr error
 
-// Global utilities variables and associated interfaces.
-var boltU Bolt_Utils
+/*
+Global utilities variables and associated interfaces.
+*/
+var uBolt utils_bolt
+var uHttp utils_http
 
-type IdSetter interface {
-	SetId(id int)
+type idSetter interface {
+	setId(id int)
 }
 
-// Primary types and related methods.
-type User struct {
+/*
+Primary types and related methods.
+*/
+type user struct {
 	Id    int    `json:"id"`
 	Email string `json:"email"`
 }
 
-// Implement the IdSetter interface for the User struct.
-func (u *User) SetId(id int) {
+func (u *user) setId(id int) {
 	u.Id = id
 }
 
+/*
+Http handlers.
+*/
 func handleSignup(w http.ResponseWriter, req *http.Request) {
 	log.Printf("handling POST to %s\n", req.URL.Path)
-
-	var u User
-
+	var u user
 	type response struct {
 		UserId int `json:"id"`
 	}
-
 	// Enforce JSON Content-Type.
-	contentType := req.Header.Get("Content-Type")
-	mediaType, _, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := uHttp.verifyContentType(w, req); err != nil {
 		return
 	}
-	if mediaType != "application/json" {
-		http.Error(w, "expect application/json Content-Type", http.StatusUnsupportedMediaType)
-		return
-	}
-
 	// Decode JSON request body (stream) into user struct.
-	dec := json.NewDecoder(req.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&u); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := uHttp.decodeJsonIntoStruct(w, req, &u); err != nil {
 		return
 	}
-
 	// Create user in database.
-	boltU.writeSequentially("USER", &u)
-
+	uBolt.writeSequentially("USER", &u)
 	// Marshal response struct into JSON response payload.
 	js, err := json.Marshal(response{UserId: u.Id})
 	if err != nil {
@@ -80,16 +72,15 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 
 func handleGetAllUsers(w http.ResponseWriter, req *http.Request) {
 	log.Printf("handling GET to %s\n", req.URL.Path)
-
-	var users []User
-
+	var users []user
+	
 	db.View(func(tx *bolt.Tx) error {
 		// Assume bucket exists and has keys.
 		b := tx.Bucket([]byte("USER"))
 		c := b.Cursor()
 
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var u User
+			var u user
 			err := json.Unmarshal(v, &u)
 			if err != nil {
 				return err
@@ -105,6 +96,7 @@ func handleGetAllUsers(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(js)
 }
@@ -116,7 +108,8 @@ func itob(v int) []byte {
 	return b
 }
 
-func shutdownServer(server *http.Server) {
+func handleShutdownServer(w http.ResponseWriter, req *http.Request, server *http.Server) {
+	log.Printf("handling POST to %s\n", req.URL.Path)
 	fmt.Println("Shutting down server...")
 	// Use a separate goroutine to allow HTTP handler to finish and send its
 	// response back to the client in it the main goroutine.
@@ -124,7 +117,6 @@ func shutdownServer(server *http.Server) {
 		// Create a context with a timeout of 5 seconds.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-
 		// Call server.Shutdown with the context, to stop the server from accepting
 		// new requests, waiting up to 5 seconds for all currently processing
 		// requests to finish.
@@ -132,14 +124,8 @@ func shutdownServer(server *http.Server) {
 			log.Fatalf("failed to shutdown server: %v", err)
 		}
 	}()
-}
-
-func handleShutdownServer(w http.ResponseWriter, req *http.Request, server *http.Server) {
-	log.Printf("handling POST to %s\n", req.URL.Path)
-	shutdownServer(server)
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte("Bye!\n"))
-
 }
 
 func main() {
@@ -166,8 +152,9 @@ func main() {
 		log.Fatalf("failed to update database: %v", dbErr)
 	}
 
-	// Instantiate Bolt_Utils struct.
-	boltU = Bolt_Utils{db: db}
+	// Instantiate utilities structs.
+	uBolt = utils_bolt{db: db}
+	uHttp = utils_http{}
 
 	// Create HTTP request multiplexer and register the handler functions.
 	mux := http.NewServeMux()

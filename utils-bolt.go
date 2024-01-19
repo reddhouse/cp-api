@@ -7,13 +7,13 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-type Bolt_Utils struct {
+type utils_bolt struct {
 	db *bolt.DB
 }
 
-func (bu *Bolt_Utils) writeSequentially(bucketName string, s IdSetter) {
+func (u *utils_bolt) writeSequentially(bucketName string, s idSetter) {
 	var id uint64
-	err := bu.db.Update(func(tx *bolt.Tx) error {
+	err := u.db.Update(func(tx *bolt.Tx) error {
 		// Retrieve the USER bucket.
 		b := tx.Bucket([]byte(bucketName))
 		// Generate an ID for this user based on existing sequence.
@@ -21,7 +21,7 @@ func (bu *Bolt_Utils) writeSequentially(bucketName string, s IdSetter) {
 		// That can't happen in an Update() call so ignore the error check.
 		id, _ = b.NextSequence()
 		// Set the Id field in the struct whose setter was passed in.
-		s.SetId(int(id))
+		s.setId(int(id))
 
 		// Marshal user struct into JSON (byte slice).
 		buf, err := json.Marshal(s)
