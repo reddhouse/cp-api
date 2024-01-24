@@ -7,9 +7,7 @@ import (
 	"net/http"
 )
 
-type utils_http struct{}
-
-func (u *utils_http) verifyContentType(w http.ResponseWriter, req *http.Request) error {
+func verifyContentType(w http.ResponseWriter, req *http.Request) error {
 	contentType := req.Header.Get("Content-Type")
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	// Unrecognized media type.
@@ -26,7 +24,7 @@ func (u *utils_http) verifyContentType(w http.ResponseWriter, req *http.Request)
 	return nil
 }
 
-func (u *utils_http) decodeJsonIntoStruct(w http.ResponseWriter, r *http.Request, dst interface{}) error {
+func decodeJsonIntoStruct(w http.ResponseWriter, r *http.Request, dst interface{}) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	err := dec.Decode(dst)

@@ -1,38 +1,38 @@
 package main
 
 import (
-	"encoding/json"
-	"log"
-
-	bolt "go.etcd.io/bbolt"
+	"encoding/binary"
+	"time"
 )
 
-type utils_bolt struct {
-	db *bolt.DB
+// Returns an 8-byte big endian representation of v. The binary.BigEndian
+// functions are used to ensure that the integers are encoded in a way that
+// preserves their order when the bytes are compared lexicographically, which
+// is how bbolt compares keys.
+func itob(v int) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, uint64(v))
+	return b
 }
 
-func (u *utils_bolt) writeSequentially(bucketName string, s idSetter) {
-	var id uint64
-	err := u.db.Update(func(tx *bolt.Tx) error {
-		// Retrieve the USER bucket.
-		b := tx.Bucket([]byte(bucketName))
-		// Generate an ID for this user based on existing sequence.
-		// This returns an error only if the Tx is closed or not writeable.
-		// That can't happen in an Update() call so ignore the error check.
-		id, _ = b.NextSequence()
-		// Set the Id field in the struct whose setter was passed in.
-		s.setId(int(id))
-
-		// Marshal user struct into JSON (byte slice).
-		buf, err := json.Marshal(s)
-		if err != nil {
-			return err
-		}
-
-		// Persist bytes to USER bucket.
-		return b.Put(itob(int(id)), buf)
-	})
-	if err != nil {
-		log.Fatalf("failed to persist user to db: %v", err)
-	}
+// Create a 12-byte key with the first 4 bytes representing the items's ID,
+// and the last 8 bytes representing the timestamp.
+func createKey(id int, timestamp time.Time) []byte {
+	buf := make([]byte, 12) // 4 bytes for id, 8 bytes for timestamp
+	binary.BigEndian.PutUint32(buf[:4], uint32(id))
+	binary.BigEndian.PutUint64(buf[4:], uint64(timestamp.UnixNano()))
+	return buf
 }
+
+// Create a 4-byte key prefix with the first 4 bytes representing the item's ID.
+func createIdPrefix(id int) []byte {
+	buf := make([]byte, 4)
+	binary.BigEndian.PutUint32(buf, uint32(id))
+	return buf
+}
+
+// prefix := createUserIDPrefix(userID)
+// c := b.Cursor()
+// for k, v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
+//     // process key/value pair
+// }
