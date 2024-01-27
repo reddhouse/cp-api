@@ -19,13 +19,7 @@ func main() {
 	getOrGeneratePrivateKey()
 
 	// Test signing a message
-	signMessage()
-
-	// Test creating a ULID key
-	ulid := createUlidKey()
-	fmt.Printf("ULID key: %x\n", ulid)
-	ts := getTimestampFromUlid(ulid)
-	fmt.Printf("Timestamp: %v\n", ts)
+	// signMessage()
 
 	// Open (create if it doesn't exist) cp.db data file current directory.
 	db, dbErr = bolt.Open("cp.db", 0600, nil)

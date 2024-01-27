@@ -5,19 +5,20 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/oklog/ulid"
 	bolt "go.etcd.io/bbolt"
 )
 
 type user struct {
-	Id    int    `json:"id"`
-	Email string `json:"email"`
+	UserId ulid.ULID `json:"userId"`
+	Email  string    `json:"email"`
 }
 
 func handleSignup(w http.ResponseWriter, req *http.Request) {
 	log.Printf("handling POST to %s\n", req.URL.Path)
 	var u user
 	type response struct {
-		UserId int `json:"id"`
+		UserId string `json:"id"`
 	}
 	// Enforce JSON Content-Type.
 	if err := verifyContentType(w, req); err != nil {
@@ -28,28 +29,35 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// Create user in database.
-	var id uint64
 	err := db.Update(func(tx *bolt.Tx) error {
 		// Retrieve the USER bucket.
 		b := tx.Bucket([]byte("USER"))
-		// Get auto-incrementing ID for new user.
-		// Tx will not be closed nor un-writeable in Update() so ignore error.
-		id, _ = b.NextSequence()
-		u.Id = int(id)
-		// Marshal user struct into JSON (byte slice).
-		buf, err := json.Marshal(u)
-		if err != nil {
+
+		// Create a ULID.
+		id, bid := createUlid()
+
+		// Write key/value pairs.
+		key := createKeyWithUlidPrefix(bid, "user_id")
+		if err := b.Put(key, bid); err != nil {
 			return err
 		}
-		// Persist bytes to USER bucket.
-		return b.Put(itob(int(id)), buf)
+		key = createKeyWithUlidPrefix(bid, "email_addr")
+		if err := b.Put(key, []byte(u.Email)); err != nil {
+			return err
+		}
+
+		// Update the user struct with the new ID.
+		u.UserId = id
+
+		return nil
 	})
+
 	if err != nil {
 		log.Fatalf("failed to put new user in db: %v", err)
 	}
 
 	// Marshal response struct into JSON response payload.
-	js, err := json.Marshal(response{UserId: u.Id})
+	js, err := json.Marshal(response{UserId: u.UserId.String()})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
