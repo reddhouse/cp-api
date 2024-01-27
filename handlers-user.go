@@ -37,11 +37,11 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		id, bid := createUlid()
 
 		// Write key/value pairs.
-		key := createKeyWithUlidPrefix(bid, "user_id")
+		key := createCompositeKey(bid, "user_id")
 		if err := b.Put(key, bid); err != nil {
 			return err
 		}
-		key = createKeyWithUlidPrefix(bid, "email_addr")
+		key = createCompositeKey(bid, "email_addr")
 		if err := b.Put(key, []byte(u.Email)); err != nil {
 			return err
 		}

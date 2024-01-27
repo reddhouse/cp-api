@@ -41,9 +41,9 @@ import (
 //     // process key/value pair
 // }
 
-// Generate a 16-byte ULID (Universally Unique Lexicographically Sortable
+// Generates a 16-byte ULID (Universally Unique Lexicographically Sortable
 // Identifier) and then marshal it to a binary format.
-// Using x/exp/rand instead of math/rand which is safe for concurrent use by
+// Uses x/exp/rand instead of math/rand which is safe for concurrent use by
 // multiple goroutines.
 func createUlid() (ulid.ULID, []byte) {
 	t := time.Now().UTC()
@@ -61,7 +61,8 @@ func createUlid() (ulid.ULID, []byte) {
 	return id, bid
 }
 
-func createKeyWithUlidPrefix(bid []byte, descriptor string) []byte {
+// Creates a 32-byte key which is the concatenation of the ULID + descriptor.
+func createCompositeKey(bid []byte, descriptor string) []byte {
 	const maxDescriptorLength = 16
 	if len(descriptor) > maxDescriptorLength {
 		log.Fatalf("descriptor length must be less than or equal to %d", maxDescriptorLength)
@@ -70,10 +71,8 @@ func createKeyWithUlidPrefix(bid []byte, descriptor string) []byte {
 	padding := strings.Repeat("\x00", maxDescriptorLength-len(descriptor))
 	bpd := []byte(descriptor + padding)
 
-	// Create a 32-byte key which is the concatenation of the ULID + descriptor.
-	key := append(bid, bpd...)
-
-	return key
+	// Return descriptor with ULID prefix.
+	return append(bid, bpd...)
 }
 
 // func getTimestampFromUlid(bsId []byte) time.Time {
