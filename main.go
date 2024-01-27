@@ -15,6 +15,18 @@ var dbErr error
 func main() {
 	fmt.Printf("Main.go is running with PID: %v\n", os.Getpid())
 
+	// Generate private key. Write to disk.
+	getOrGeneratePrivateKey()
+
+	// Test signing a message
+	signMessage()
+
+	// Test creating a ULID key
+	ulid := createUlidKey()
+	fmt.Printf("ULID key: %x\n", ulid)
+	ts := getTimestampFromUlid(ulid)
+	fmt.Printf("Timestamp: %v\n", ts)
+
 	// Open (create if it doesn't exist) cp.db data file current directory.
 	db, dbErr = bolt.Open("cp.db", 0600, nil)
 	if dbErr != nil {

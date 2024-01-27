@@ -5,6 +5,10 @@
 .env
 .env.test
 
+## Private keys
+*.pem
+*.key
+
 ## VSCode
 .vscode/
 

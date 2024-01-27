@@ -2,7 +2,11 @@ package main
 
 import (
 	"encoding/binary"
+	"log"
 	"time"
+
+	"github.com/oklog/ulid"
+	"golang.org/x/exp/rand"
 )
 
 // Returns an 8-byte big endian representation of v. The binary.BigEndian
@@ -36,3 +40,39 @@ func createIdPrefix(id int) []byte {
 // for k, v := c.Seek(prefix); k != nil && bytes.HasPrefix(k, prefix); k, v = c.Next() {
 //     // process key/value pair
 // }
+
+// Generate a 16-byte ULID (Universally Unique Lexicographically Sortable
+// Identifier) and then marshal it to a binary format.
+// Using x/exp/rand instead of math/rand which is safe for concurrent use by
+// multiple goroutines.
+func createUlidKey() []byte {
+	t := time.Now().UTC()
+	entropy := rand.New(rand.NewSource(uint64(t.UnixNano())))
+	id, err := ulid.New(ulid.Timestamp(t), entropy)
+	if err != nil {
+		log.Fatalf("failed to create ULID: %v", err)
+	}
+	bsId, err := id.MarshalBinary()
+	if err != nil {
+		log.Fatalf("failed to marshal ULID: %v", err)
+	}
+	return bsId
+}
+
+func getTimestampFromUlid(bsId []byte) time.Time {
+	// ULIDs as strings are 26 characters (ulid.EncodedSize constant). Here, we
+	// have previously marshalled the ULID to binary, which is 16 bytes.
+	if len(bsId) != 16 {
+		log.Fatalf("invalid ULID binary size: got %v, want 16", len(bsId))
+	}
+
+	var id ulid.ULID
+	copy(id[:], bsId)
+
+	// Extract the timestamp
+	timestamp := id.Time()
+
+	// Convert the timestamp to a time.Time
+	time := time.Unix(int64(timestamp)/1000, 0)
+	return time
+}
