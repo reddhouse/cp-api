@@ -18,7 +18,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	log.Printf("Handling POST to %s\n", req.URL.Path)
 	var u user
 	type response struct {
-		UserId string `json:"id"`
+		UserId string `json:"userId"`
 	}
 	// Enforce JSON Content-Type.
 	if err := verifyContentType(w, req); err != nil {
