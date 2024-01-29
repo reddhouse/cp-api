@@ -15,7 +15,7 @@ type user struct {
 }
 
 func handleSignup(w http.ResponseWriter, req *http.Request) {
-	log.Printf("[cp-api] Handling POST to %s\n", req.URL.Path)
+	log.Printf("Handling POST to %s\n", req.URL.Path)
 	var u user
 	type response struct {
 		UserId string `json:"id"`
@@ -67,7 +67,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 }
 
 func handleGetAllUsers(w http.ResponseWriter, req *http.Request) {
-	log.Printf("[cp-api] Handling GET to %s\n", req.URL.Path)
+	log.Printf("Handling GET to %s\n", req.URL.Path)
 	var users []user
 	db.View(func(tx *bolt.Tx) error {
 		// Assume bucket exists and has keys.

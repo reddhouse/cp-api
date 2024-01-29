@@ -9,8 +9,8 @@ import (
 )
 
 func handleShutdownServer(w http.ResponseWriter, req *http.Request, server *http.Server) {
-	log.Printf("[cp-api] Handling POST to %s\n", req.URL.Path)
-	fmt.Println("[cp-api] Shutting down server...")
+	log.Printf("Handling POST to %s\n", req.URL.Path)
+	fmt.Println("Shutting down server...")
 	// Use a separate goroutine to allow HTTP handler to finish and send its
 	// response back to the client in it the main goroutine.
 	go func() {
@@ -25,5 +25,5 @@ func handleShutdownServer(w http.ResponseWriter, req *http.Request, server *http
 		}
 	}()
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte("[cp-api] Bye!\n"))
+	w.Write([]byte("Bye!\n"))
 }

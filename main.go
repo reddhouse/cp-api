@@ -14,6 +14,7 @@ var db *bolt.DB
 var dbErr error
 
 func main() {
+	log.SetPrefix("[cp-api] ")
 	fmt.Printf("[cp-api] Main.go (cp-api) has PID: %v\n", os.Getpid())
 
 	// Generate private key. Write to disk.
