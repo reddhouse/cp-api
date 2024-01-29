@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -44,9 +45,13 @@ func main() {
 	// Create HTTP request multiplexer.
 	mux := http.NewServeMux()
 
+	// Parse port number from command line flag.
+	port := flag.String("port", "8000", "port to listen on")
+	flag.Parse()
+
 	// Create HTTP server.
 	server := &http.Server{
-		Addr:    ":8000",
+		Addr:    ":" + *port,
 		Handler: mux,
 	}
 
@@ -57,7 +62,7 @@ func main() {
 		handleShutdownServer(w, req, server)
 	})
 
-	fmt.Println("Starting server on port 8000...")
+	fmt.Printf("Starting server on port %v...", port)
 
 	// Serve it up.
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
