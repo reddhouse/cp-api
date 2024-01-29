@@ -62,7 +62,7 @@ func main() {
 		handleShutdownServer(w, req, server)
 	})
 
-	fmt.Printf("Starting server on port %s...", *port)
+	fmt.Printf("Starting server on port %s...\n", *port)
 
 	// Serve it up.
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
