@@ -1,4 +1,4 @@
-module cp-api.cooperativeparty.org
+module github.com/reddhouse/cp-api
 
 // go 1.21.5
 
