@@ -14,7 +14,7 @@ var db *bolt.DB
 var dbErr error
 
 func main() {
-	fmt.Printf("Main.go (cp-api) has PID: %v\n", os.Getpid())
+	fmt.Printf("[cp-api] Main.go (cp-api) has PID: %v\n", os.Getpid())
 
 	// Generate private key. Write to disk.
 	getOrGeneratePrivateKey()
@@ -25,7 +25,7 @@ func main() {
 	// Open (create if it doesn't exist) cp.db data file current directory.
 	db, dbErr = bolt.Open("cp.db", 0600, nil)
 	if dbErr != nil {
-		log.Fatalf("failed to open database: %v", dbErr)
+		log.Fatalf("error opening database: %v", dbErr)
 	}
 	defer db.Close()
 
@@ -33,13 +33,13 @@ func main() {
 	dbErr = db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists([]byte("USER"))
 		if err != nil {
-			return fmt.Errorf("failed to create bucket: %s", err)
+			return fmt.Errorf("error creating bucket: %s", err)
 		}
 		return nil
 	})
 
 	if dbErr != nil {
-		log.Fatalf("failed to update database: %v", dbErr)
+		log.Fatalf("error updating database: %v", dbErr)
 	}
 
 	// Create HTTP request multiplexer.
@@ -62,10 +62,10 @@ func main() {
 		handleShutdownServer(w, req, server)
 	})
 
-	fmt.Printf("Starting server on port %s...\n", *port)
+	fmt.Printf("[cp-api] Starting server on port %s...\n", *port)
 
 	// Serve it up.
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
-		log.Fatalf("failed to start server: %v", err)
+		log.Fatalf("error starting server: %v", err)
 	}
 }

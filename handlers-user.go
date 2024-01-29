@@ -15,7 +15,7 @@ type user struct {
 }
 
 func handleSignup(w http.ResponseWriter, req *http.Request) {
-	log.Printf("handling POST to %s\n", req.URL.Path)
+	log.Printf("[cp-api] Handling POST to %s\n", req.URL.Path)
 	var u user
 	type response struct {
 		UserId string `json:"id"`
@@ -53,7 +53,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	})
 
 	if err != nil {
-		log.Fatalf("failed to put new user in db: %v", err)
+		log.Fatalf("error putting new user in db: %v", err)
 	}
 
 	// Marshal response struct into JSON response payload.
@@ -67,7 +67,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 }
 
 func handleGetAllUsers(w http.ResponseWriter, req *http.Request) {
-	log.Printf("handling GET to %s\n", req.URL.Path)
+	log.Printf("[cp-api] Handling GET to %s\n", req.URL.Path)
 	var users []user
 	db.View(func(tx *bolt.Tx) error {
 		// Assume bucket exists and has keys.

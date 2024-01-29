@@ -50,12 +50,12 @@ func createUlid() (ulid.ULID, []byte) {
 	entropy := rand.New(rand.NewSource(uint64(t.UnixNano())))
 	id, err := ulid.New(ulid.Timestamp(t), entropy)
 	if err != nil {
-		log.Fatalf("failed to create ULID: %v", err)
+		log.Fatalf("error creating ULID: %v", err)
 	}
 
 	bid, err := id.MarshalBinary()
 	if err != nil {
-		log.Fatalf("failed to marshal ULID: %v", err)
+		log.Fatalf("error marshaling ULID: %v", err)
 	}
 
 	return id, bid
@@ -65,7 +65,7 @@ func createUlid() (ulid.ULID, []byte) {
 func createCompositeKey(bid []byte, descriptor string) []byte {
 	const maxDescriptorLength = 16
 	if len(descriptor) > maxDescriptorLength {
-		log.Fatalf("descriptor length must be less than or equal to %d", maxDescriptorLength)
+		log.Fatalf("error creating key (descriptor must be less than or equal to %d bytes)", maxDescriptorLength)
 	}
 	// Add padding if the descriptor is too short.
 	padding := strings.Repeat("\x00", maxDescriptorLength-len(descriptor))
@@ -78,7 +78,7 @@ func createCompositeKey(bid []byte, descriptor string) []byte {
 // func getTimestampFromUlid(bsId []byte) time.Time {
 // 	var id ulid.ULID
 // 	if err := id.UnmarshalBinary(bsId); err != nil {
-// 		log.Fatalf("failed to unmarshal ULID: %v", err)
+// 		log.Fatalf("error unmarshaling ULID: %v", err)
 // 	}
 
 // 	// Extract the timestamp

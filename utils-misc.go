@@ -19,7 +19,7 @@ var pkErr error
 // 	// Generate a new private key.
 // 	privateKey, pkErr = rsa.GenerateKey(rand.Reader, 2048)
 // 	if pkErr != nil {
-// 		log.Fatalf("failed to create private key: %v", pkErr)
+// 		log.Fatalf("error creating private key: %v", pkErr)
 // 	}
 
 // 	// Encode the private key into PEM format.
@@ -32,7 +32,7 @@ var pkErr error
 // 	// Write the PEM to a file.
 // 	pkErr = os.WriteFile("cp.pem", privateKeyPEM, 0600)
 // 	if pkErr != nil {
-// 		log.Fatalf("failed to write private key to disk: %v", pkErr)
+// 		log.Fatalf("error writing private key to disk: %v", pkErr)
 // 	}
 // }
 
@@ -43,7 +43,7 @@ func getOrGeneratePrivateKey() {
 		// The private key file does not exist, so generate a new key.
 		privateKey, pkErr = rsa.GenerateKey(rand.Reader, 2048)
 		if pkErr != nil {
-			log.Fatalf("failed to create private key: %v", pkErr)
+			log.Fatalf("error creating private key: %v", pkErr)
 		}
 
 		// Encode the private key into PEM format.
@@ -56,25 +56,25 @@ func getOrGeneratePrivateKey() {
 		// Write the PEM to a file.
 		pkErr = os.WriteFile("cp.pem", privateKeyPEM, 0600)
 		if pkErr != nil {
-			log.Fatalf("failed to write private key to disk: %v", pkErr)
+			log.Fatalf("error writing private key to disk: %v", pkErr)
 		}
 	} else {
 		var privateKeyPEM []byte
 		// The private key file exists, so read it.
 		privateKeyPEM, pkErr = os.ReadFile("cp.pem")
 		if pkErr != nil {
-			log.Fatalf("failed to read private key file: %v", pkErr)
+			log.Fatalf("error reading private key file: %v", pkErr)
 		}
 
 		// Decode the PEM file into a private key.
 		block, _ := pem.Decode(privateKeyPEM)
 		if block == nil || block.Type != "RSA PRIVATE KEY" {
-			panic("failed to decode PEM block containing private key")
+			panic("error decoding PEM block containing private key")
 		}
 
 		privateKey, pkErr = x509.ParsePKCS1PrivateKey(block.Bytes)
 		if pkErr != nil {
-			log.Fatalf("failed to parse encoded private key: %v", pkErr)
+			log.Fatalf("error parsing encoded private key: %v", pkErr)
 		}
 	}
 }
