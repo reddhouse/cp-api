@@ -12,6 +12,7 @@ import (
 
 var db *bolt.DB
 var dbErr error
+var isTestRun *bool
 
 func main() {
 	log.SetPrefix("[cp-api] ")
@@ -46,13 +47,20 @@ func main() {
 	// Create HTTP request multiplexer.
 	mux := http.NewServeMux()
 
-	// Parse port number from command line flag.
-	port := flag.String("port", "8000", "port to listen on")
+	// Parse command line flag.
+	isTestRun = flag.Bool("testRun", false, "instruct server of special test client")
 	flag.Parse()
+
+	var port string
+	if *isTestRun {
+		port = "8001"
+	} else {
+		port = "8000"
+	}
 
 	// Create HTTP server.
 	server := &http.Server{
-		Addr:    ":" + *port,
+		Addr:    ":" + port,
 		Handler: mux,
 	}
 
@@ -63,7 +71,7 @@ func main() {
 		handleShutdownServer(w, req, server)
 	})
 
-	fmt.Printf("[cp-api] Starting server on port %s...\n", *port)
+	fmt.Printf("[cp-api] Starting server on port %s...\n", port)
 
 	// Serve it up.
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
