@@ -48,7 +48,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Parse command line flag.
-	isTestRun = flag.Bool("testRun", false, "instruct server of special test client")
+	isTestRun = flag.Bool("test", false, "instruct server of special test client")
 	flag.Parse()
 
 	var port string
