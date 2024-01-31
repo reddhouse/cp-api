@@ -74,10 +74,17 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(js)
 
-	// Send email to user.
-	err = sendEmail(uas.Email, "Welcome to the Cooperative Party!", "Thank you for signing up!")
-	if err != nil {
-		fmt.Printf("error sending email to user: %v", err)
+	if *isTestRun {
+
+		// Todo: Store code in admin struct in database.
+
+		return
+	} else {
+		// Send email to user.
+		err = sendEmail(uas.Email, "Welcome to the Cooperative Party!", "Thank you for signing up!")
+		if err != nil {
+			fmt.Printf("error sending email to user: %v", err)
+		}
 	}
 }
 

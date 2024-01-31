@@ -24,7 +24,9 @@ func loadEnvVariables() {
 
 func main() {
 	log.SetPrefix("[cp-api] ")
-	loadEnvVariables()
+	if !*isTestRun {
+		loadEnvVariables()
+	}
 	fmt.Printf("[cp-api] Main.go (cp-api) has PID: %v\n", os.Getpid())
 
 	// Generate private key. Write to disk.
