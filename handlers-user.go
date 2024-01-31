@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -62,7 +61,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	})
 
 	if err != nil {
-		log.Fatalf("error putting new user in db: %v", err)
+		log.Fatalf("[error-api] putting new user in db: %v", err)
 	}
 
 	// Marshal response struct into JSON response payload.
@@ -78,7 +77,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		// Send email to user.
 		err = sendEmail(uas.Email, "Welcome to the Cooperative Party!", "Thank you for signing up!")
 		if err != nil {
-			fmt.Printf("error sending email to user: %v", err)
+			log.Printf("[error-api] sending email to user: %v", err)
 		}
 	} else {
 		// Todo: Store code in admin struct in database.

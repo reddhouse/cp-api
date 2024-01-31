@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"mime"
 	"net/http"
 )
@@ -18,7 +19,8 @@ func verifyContentType(w http.ResponseWriter, req *http.Request) error {
 	}
 	// Unsupported media type.
 	if mediaType != "application/json" {
-		err := errors.New("error expecting application/json Content-Type")
+		err := errors.New("expected application/json Content-Type")
+		log.Printf("[error-api] verifying content type: %v", err)
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 		return err
 	}
@@ -30,7 +32,8 @@ func decodeJsonIntoStruct(w http.ResponseWriter, r *http.Request, dst interface{
 	dec.DisallowUnknownFields()
 	err := dec.Decode(dst)
 	if err != nil {
-		err = fmt.Errorf("error decoding JSON into struct: %w", err)
+		err = fmt.Errorf("failed to decode JSON into struct: %w", err)
+		log.Printf("[error-api] decoding JSON: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return err
 	}

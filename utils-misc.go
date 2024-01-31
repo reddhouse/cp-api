@@ -22,7 +22,7 @@ func getOrGeneratePrivateKey() {
 		// The private key file does not exist, so generate a new key.
 		cpPrivateKey, err = rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
-			log.Fatalf("error creating private key: %v", err)
+			log.Fatalf("[error-api] creating private key: %v", err)
 		}
 
 		// Encode the private key into PEM format.
@@ -35,25 +35,25 @@ func getOrGeneratePrivateKey() {
 		// Write the PEM to a file.
 		err = os.WriteFile("cp.pem", privateKeyPEM, 0600)
 		if err != nil {
-			log.Fatalf("error writing private key to disk: %v", err)
+			log.Fatalf("[error-api] writing private key to disk: %v", err)
 		}
 	} else {
 		var privateKeyPEM []byte
 		// The private key file exists, so read it.
 		privateKeyPEM, err := os.ReadFile("cp.pem")
 		if err != nil {
-			log.Fatalf("error reading private key file: %v", err)
+			log.Fatalf("[error-api] reading private key file: %v", err)
 		}
 
 		// Decode the PEM file into a private key.
 		block, _ := pem.Decode(privateKeyPEM)
 		if block == nil || block.Type != "RSA PRIVATE KEY" {
-			panic("error decoding PEM block containing private key")
+			log.Fatalf("[error-api] decoding PEM block containing private key")
 		}
 
 		cpPrivateKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
-			log.Fatalf("error parsing encoded private key: %v", err)
+			log.Fatalf("[error-api] parsing encoded private key: %v", err)
 		}
 	}
 }

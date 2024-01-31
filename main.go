@@ -18,7 +18,7 @@ var env *string
 func loadEnvVariables() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("error loading .env file")
+		log.Fatal("[error-api] loading .env file")
 	}
 }
 
@@ -32,7 +32,7 @@ func main() {
 	if env != nil && *env == "prod" {
 		loadEnvVariables()
 	}
-	fmt.Printf("[cp-api] Main.go (cp-api) has PID: %v\n", os.Getpid())
+	log.Printf("Main.go has PID: %v", os.Getpid())
 
 	// Generate private key. Write to disk.
 	getOrGeneratePrivateKey()
@@ -40,7 +40,7 @@ func main() {
 	// Open (create if it doesn't exist) cp.db data file current directory.
 	db, dbErr = bolt.Open("cp.db", 0600, nil)
 	if dbErr != nil {
-		log.Fatalf("error opening database: %v", dbErr)
+		log.Fatalf("[error-api] opening database: %v", dbErr)
 	}
 	defer db.Close()
 
@@ -54,7 +54,7 @@ func main() {
 	})
 
 	if dbErr != nil {
-		log.Fatalf("error updating database: %v", dbErr)
+		log.Fatalf("[error-api] updating database: %v", dbErr)
 	}
 
 	// Create HTTP request multiplexer.
@@ -73,10 +73,10 @@ func main() {
 		handleShutdownServer(w, req, server)
 	})
 
-	fmt.Println("[cp-api] Starting server on port 8000...")
+	log.Println("Starting server on port 8000...")
 
 	// Serve it up.
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
-		log.Fatalf("error starting server: %v", err)
+		log.Fatalf("[error-api] starting server: %v", err)
 	}
 }
