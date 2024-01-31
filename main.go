@@ -24,6 +24,11 @@ func loadEnvVariables() {
 
 func main() {
 	log.SetPrefix("[cp-api] ")
+	// Parse command line flag.
+	isTestRun = flag.Bool("test", false, "instruct server of special test client")
+	flag.Parse()
+
+	// Env variable are not currently needed in cp-admin end-to-end test.
 	if !*isTestRun {
 		loadEnvVariables()
 	}
@@ -31,9 +36,6 @@ func main() {
 
 	// Generate private key. Write to disk.
 	getOrGeneratePrivateKey()
-
-	// Test signing a message
-	// signMessage()
 
 	// Open (create if it doesn't exist) cp.db data file current directory.
 	db, dbErr = bolt.Open("cp.db", 0600, nil)
@@ -57,10 +59,6 @@ func main() {
 
 	// Create HTTP request multiplexer.
 	mux := http.NewServeMux()
-
-	// Parse command line flag.
-	isTestRun = flag.Bool("test", false, "instruct server of special test client")
-	flag.Parse()
 
 	var port string
 	if *isTestRun {
