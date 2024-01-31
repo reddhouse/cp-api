@@ -13,7 +13,7 @@ import (
 
 var db *bolt.DB
 var dbErr error
-var isTestRun *bool
+var env *string
 
 func loadEnvVariables() {
 	err := godotenv.Load()
@@ -25,11 +25,11 @@ func loadEnvVariables() {
 func main() {
 	log.SetPrefix("[cp-api] ")
 	// Parse command line flag.
-	isTestRun = flag.Bool("test", false, "instruct server of special test client")
+	env = flag.String("env", "dev", "environment in which to run server (dev, prod)")
 	flag.Parse()
 
 	// Env variable are not currently needed in cp-admin end-to-end test.
-	if !*isTestRun {
+	if env != nil && *env == "prod" {
 		loadEnvVariables()
 	}
 	fmt.Printf("[cp-api] Main.go (cp-api) has PID: %v\n", os.Getpid())
@@ -60,16 +60,9 @@ func main() {
 	// Create HTTP request multiplexer.
 	mux := http.NewServeMux()
 
-	var port string
-	if *isTestRun {
-		port = "8001"
-	} else {
-		port = "8000"
-	}
-
 	// Create HTTP server.
 	server := &http.Server{
-		Addr:    ":" + port,
+		Addr:    ":8000",
 		Handler: mux,
 	}
 
@@ -80,7 +73,7 @@ func main() {
 		handleShutdownServer(w, req, server)
 	})
 
-	fmt.Printf("[cp-api] Starting server on port %s...\n", port)
+	fmt.Println("[cp-api] Starting server on port 8000...")
 
 	// Serve it up.
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {

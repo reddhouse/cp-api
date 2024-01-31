@@ -74,17 +74,14 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(js)
 
-	if *isTestRun {
-
-		// Todo: Store code in admin struct in database.
-
-		return
-	} else {
+	if env != nil && *env == "prod" {
 		// Send email to user.
 		err = sendEmail(uas.Email, "Welcome to the Cooperative Party!", "Thank you for signing up!")
 		if err != nil {
 			fmt.Printf("error sending email to user: %v", err)
 		}
+	} else {
+		// Todo: Store code in admin struct in database.
 	}
 }
 
