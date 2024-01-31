@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/joho/godotenv"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -14,8 +15,16 @@ var db *bolt.DB
 var dbErr error
 var isTestRun *bool
 
+func loadEnvVariables() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("error loading .env file")
+	}
+}
+
 func main() {
 	log.SetPrefix("[cp-api] ")
+	loadEnvVariables()
 	fmt.Printf("[cp-api] Main.go (cp-api) has PID: %v\n", os.Getpid())
 
 	// Generate private key. Write to disk.

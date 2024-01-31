@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -9,14 +10,19 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-type user struct {
+type userBeforeSignup struct {
+	Email string `json:"email"`
+}
+
+type userAfterSignup struct {
 	UserId ulid.ULID `json:"userId"`
 	Email  string    `json:"email"`
 }
 
 func handleSignup(w http.ResponseWriter, req *http.Request) {
 	log.Printf("Handling POST to %s\n", req.URL.Path)
-	var u user
+	var ubs userBeforeSignup
+	var uas userAfterSignup
 	type response struct {
 		UserId string `json:"userId"`
 	}
@@ -25,7 +31,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// Decode JSON request body (stream) into user struct.
-	if err := decodeJsonIntoStruct(w, req, &u); err != nil {
+	if err := decodeJsonIntoStruct(w, req, &ubs); err != nil {
 		return
 	}
 	// Create user in database.
@@ -42,12 +48,15 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 			return err
 		}
 		key = createCompositeKey(bid, "email_addr")
-		if err := b.Put(key, []byte(u.Email)); err != nil {
+		if err := b.Put(key, []byte(ubs.Email)); err != nil {
 			return err
 		}
 
-		// Update the user struct with the new ID.
-		u.UserId = id
+		// Use userAfterSignup instance from this point forward.
+		uas = userAfterSignup{
+			UserId: id,
+			Email:  ubs.Email,
+		}
 
 		return nil
 	})
@@ -57,25 +66,31 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Marshal response struct into JSON response payload.
-	js, err := json.Marshal(response{UserId: u.UserId.String()})
+	js, err := json.Marshal(response{UserId: uas.UserId.String()})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(js)
+
+	// Send email to user.
+	err = sendEmail(uas.Email, "Welcome to the Cooperative Party!", "Thank you for signing up!")
+	if err != nil {
+		fmt.Printf("error sending email to user: %v", err)
+	}
 }
 
 func handleGetAllUsers(w http.ResponseWriter, req *http.Request) {
 	log.Printf("Handling GET to %s\n", req.URL.Path)
-	var users []user
+	var users []userAfterSignup
 	db.View(func(tx *bolt.Tx) error {
 		// Assume bucket exists and has keys.
 		b := tx.Bucket([]byte("USER"))
 		c := b.Cursor()
 
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var u user
+			var u userAfterSignup
 			err := json.Unmarshal(v, &u)
 			if err != nil {
 				return err
