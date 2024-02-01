@@ -3,12 +3,14 @@ package main
 import (
 	"crypto"
 	"crypto/rand"
+	cryptoRand "crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"log"
+	mathRand "math/rand"
 	"os"
 )
 
@@ -68,10 +70,15 @@ func signMessage() {
 	hashedMessage := hash.Sum(nil)
 
 	// Sign the hashed message.
-	signature, err := rsa.SignPKCS1v15(rand.Reader, cpPrivateKey, crypto.SHA256, hashedMessage)
+	signature, err := rsa.SignPKCS1v15(cryptoRand.Reader, cpPrivateKey, crypto.SHA256, hashedMessage)
 	if err != nil {
 		panic(err)
 	}
 
 	fmt.Printf("Signature: %x\n", signature)
+}
+
+// Generates a 6 digit code for password-less login.
+func generateLoginCode() int {
+	return mathRand.Intn(900000) + 100000
 }

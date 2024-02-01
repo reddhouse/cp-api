@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
@@ -33,35 +34,51 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	if err := decodeJsonIntoStruct(w, req, &ubs); err != nil {
 		return
 	}
+
+	// Create ULID and key(s) to be stored.
+	id, bid := createUlid()
+	keyEmail := createCompositeKey(bid, "email_addr")
+
+	// Create a login code.
+	// loginCode := generateLoginCode()
+
 	// Create user in database.
 	err := db.Update(func(tx *bolt.Tx) error {
 		// Retrieve the USER bucket.
 		b := tx.Bucket([]byte("USER"))
 
-		// Create a ULID.
-		id, bid := createUlid()
+		// Check if email already exists.
+		err := b.ForEach(func(k, v []byte) error {
+			if string(v) == ubs.Email {
+				return errors.New("email already exists")
+			}
+			return nil
+		})
+
+		if err != nil {
+			return err
+		}
 
 		// Write key/value pairs.
-		key := createCompositeKey(bid, "user_id")
-		if err := b.Put(key, bid); err != nil {
+		if err := b.Put(keyEmail, []byte(ubs.Email)); err != nil {
 			return err
-		}
-		key = createCompositeKey(bid, "email_addr")
-		if err := b.Put(key, []byte(ubs.Email)); err != nil {
-			return err
-		}
-
-		// Use userAfterSignup instance from this point forward.
-		uas = userAfterSignup{
-			UserId: id,
-			Email:  ubs.Email,
 		}
 
 		return nil
 	})
 
+	// Send error response if provided email is not unique, and do not proceed.
 	if err != nil {
-		log.Fatalf("[error-api] putting new user in db: %v", err)
+		log.Printf("[error-api] putting new user in db: %v", err)
+		const statusUnprocessableEntity = 422
+		http.Error(w, err.Error(), statusUnprocessableEntity)
+		return
+	}
+
+	// Use userAfterSignup instance from this point forward.
+	uas = userAfterSignup{
+		UserId: id,
+		Email:  ubs.Email,
 	}
 
 	// Marshal response struct into JSON response payload.

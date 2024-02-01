@@ -75,6 +75,21 @@ func createCompositeKey(bid []byte, descriptor string) []byte {
 	return append(bid, bpd...)
 }
 
+// Extracts the ULID from a composite key.
+func getUlidFromCompositeKey(k []byte) ulid.ULID {
+	const ulidLength = 16
+	const compositeKeyLength = 32
+	if len(k) < compositeKeyLength {
+		log.Fatalf("[error-api] invalid composite key (should be exactly %d bytes)", compositeKeyLength)
+	}
+	// Return the first 16 bytes of the composite key, which is the ULID.
+	var id ulid.ULID
+	if err := id.UnmarshalBinary(k[:ulidLength]); err != nil {
+		log.Fatalf("[error-api] unmarshaling ULID: %v", err)
+	}
+	return id
+}
+
 // func getTimestampFromUlid(bsId []byte) time.Time {
 // 	var id ulid.ULID
 // 	if err := id.UnmarshalBinary(bsId); err != nil {
