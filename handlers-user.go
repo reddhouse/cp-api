@@ -6,35 +6,42 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/oklog/ulid"
 	bolt "go.etcd.io/bbolt"
 )
 
 type authGroup struct {
-	LoginCode     int
-	LoginAttempts int
-	// SignoutTs time.Time
+	LoginCode     int       `json:"loginCode"`
+	LoginAttempts int       `json:"loginAttempts"`
+	SignoutTs     time.Time `json:"signoutTs"`
 }
 
 type user struct {
-	UserId  ulid.ULID `json:"userId"`
-	Email   string    `json:"email"`
-	AuthGrp authGroup `json:"authGrp"`
+	UserId  ulid.ULID
+	Email   string
+	AuthGrp authGroup
 }
 
 func handleSignup(w http.ResponseWriter, req *http.Request) {
-	log.Printf("Handling POST to %s\n", req.URL.Path)
-	var u user
-	type response struct {
+	type requestBody struct {
+		Email string `json:"email"`
+	}
+	type responseBody struct {
 		UserId string `json:"userId"`
 	}
+	var userInst user
+	var requestBodyInst requestBody
+
+	log.Printf("Handling POST to %s\n", req.URL.Path)
+
 	// Enforce JSON Content-Type.
 	if err := verifyContentType(w, req); err != nil {
 		return
 	}
-	// Decode JSON request body (stream) into user struct.
-	if err := decodeJsonIntoStruct(w, req, &u); err != nil {
+	// Decode JSON request body (stream) into responseBody struct.
+	if err := decodeJsonIntoStruct(w, req, &requestBodyInst); err != nil {
 		return
 	}
 
@@ -44,19 +51,20 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	keyAuth := createCompositeKey(bid, "auth_grp")
 
 	// Update user instance.
-	u.UserId = id
-	u.AuthGrp.LoginCode = generateLoginCode()
-	u.AuthGrp.LoginAttempts = 0
+	userInst.UserId = id
+	userInst.Email = requestBodyInst.Email
+	userInst.AuthGrp.LoginCode = generateLoginCode()
+	userInst.AuthGrp.LoginAttempts = 0
 
 	// Marshal authGroup to be stored.
-	agJs, err := json.Marshal(u.AuthGrp)
+	agJs, err := json.Marshal(userInst.AuthGrp)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Marshal response struct for response payload.
-	resJs, err := json.Marshal(response{UserId: u.UserId.String()})
+	resJs, err := json.Marshal(responseBody{UserId: userInst.UserId.String()})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -69,7 +77,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 
 		// Check if email already exists.
 		err := b.ForEach(func(k, v []byte) error {
-			if string(v) == u.Email {
+			if string(v) == userInst.Email {
 				return errors.New("email already exists")
 			}
 			return nil
@@ -81,7 +89,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		}
 
 		// Write key/value pairs.
-		if err := b.Put(keyEmail, []byte(u.Email)); err != nil {
+		if err := b.Put(keyEmail, []byte(userInst.Email)); err != nil {
 			return err
 		}
 		if err := b.Put(keyAuth, agJs); err != nil {
@@ -105,7 +113,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 
 	if env != nil && *env == "prod" {
 		// Send email to user.
-		err = sendEmail(u.Email, "Login code for Cooperative Party!", fmt.Sprintf("Thanks for signing up! You may now login using the following code: %v", u.AuthGrp.LoginCode))
+		err = sendEmail(userInst.Email, "Login code for Cooperative Party!", fmt.Sprintf("Thanks for signing up! You may now login using the following code: %v", userInst.AuthGrp.LoginCode))
 		if err != nil {
 			log.Printf("[error-api] sending email to user: %v", err)
 		}
