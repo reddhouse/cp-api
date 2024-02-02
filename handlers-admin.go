@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 func handleShutdownServer(w http.ResponseWriter, req *http.Request, server *http.Server) {
@@ -25,4 +28,30 @@ func handleShutdownServer(w http.ResponseWriter, req *http.Request, server *http
 	}()
 	w.Header().Set("Content-Type", "text/plain")
 	w.Write([]byte("Bye!\n"))
+}
+
+func handleLogBucket(w http.ResponseWriter, req *http.Request) {
+	log.Printf("Handling POST to %s\n", req.URL.Path)
+	bucket := req.PathValue("bucket")
+	err := db.View(func(tx *bolt.Tx) error {
+		// Assume bucket exists and has keys.
+		b := tx.Bucket([]byte(bucket))
+		c := b.Cursor()
+
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			id, d := decodeCompositeKey(k)
+			prettyKey := fmt.Sprintf("%s.%s", id, d)
+			fmt.Printf("%v | %s\n", prettyKey, v)
+		}
+		return nil
+	})
+
+	if err != nil {
+		fmt.Printf("[api-debug] error: %v\n", err)
+		// Send a 500 Internal Server Error status code
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	// Send a 200 OK status code
+	w.WriteHeader(http.StatusOK)
 }
