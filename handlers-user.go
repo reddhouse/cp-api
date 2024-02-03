@@ -46,9 +46,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Create ULID and db key(s).
-	id, bid := createUlid()
-	keyEmail := createCompositeKey(bid, "email_addr")
-	keyAuth := createCompositeKey(bid, "auth_grp")
+	id, binaryId := createUlid()
 
 	// Update user instance.
 	userInst.UserId = id
@@ -72,11 +70,12 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 
 	// Create user in database.
 	err = db.Update(func(tx *bolt.Tx) error {
-		// Retrieve the USER bucket.
-		b := tx.Bucket([]byte("USER"))
+		// Retrieve buckets.
+		eb := tx.Bucket([]byte("USER_EMAIL"))
+		ab := tx.Bucket([]byte("USER_AUTH"))
 
 		// Check if email already exists.
-		err := b.ForEach(func(k, v []byte) error {
+		err := eb.ForEach(func(k, v []byte) error {
 			if string(v) == userInst.Email {
 				return errors.New("email already exists")
 			}
@@ -89,10 +88,10 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		}
 
 		// Write key/value pairs.
-		if err := b.Put(keyEmail, []byte(userInst.Email)); err != nil {
+		if err := eb.Put(binaryId, []byte(userInst.Email)); err != nil {
 			return err
 		}
-		if err := b.Put(keyAuth, agJs); err != nil {
+		if err := ab.Put(binaryId, agJs); err != nil {
 			return err
 		}
 
@@ -121,3 +120,28 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		// Todo: Store code in admin struct in database.
 	}
 }
+
+// func handleLoginCode(w http.ResponseWriter, req *http.Request) {
+// 	type requestBody struct {
+// 		Email string `json:"email"`
+// 	}
+// 	type responseBody struct {
+// 		Token string `json:"token"`
+// 	}
+// 	var userInst user
+// 	var requestBodyInst requestBody
+
+// 	log.Printf("Handling GET to %s\n", req.URL.Path)
+
+// 	// Enforce JSON Content-Type.
+// 	if err := verifyContentType(w, req); err != nil {
+// 		return
+// 	}
+// 	// Decode JSON request body (stream) into responseBody struct.
+// 	if err := decodeJsonIntoStruct(w, req, &requestBodyInst); err != nil {
+// 		return
+// 	}
+
+// 	// Lookup userId by email, and retrieve corresponding authGroup.
+
+// }

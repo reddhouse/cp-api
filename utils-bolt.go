@@ -2,7 +2,6 @@ package main
 
 import (
 	"log"
-	"strings"
 	"time"
 
 	"github.com/oklog/ulid"
@@ -27,38 +26,4 @@ func createUlid() (ulid.ULID, []byte) {
 	}
 
 	return id, bid
-}
-
-// Creates a 32-byte key which is the concatenation of the ULID + descriptor.
-func createCompositeKey(bid []byte, descriptor string) []byte {
-	const maxDescriptorLength = 16
-	if len(descriptor) > maxDescriptorLength {
-		log.Fatalf("[error-api] creating key (descriptor must be less than or equal to %d bytes)", maxDescriptorLength)
-	}
-	// Add padding if the descriptor is too short.
-	padding := strings.Repeat("\x00", maxDescriptorLength-len(descriptor))
-	bpd := []byte(descriptor + padding)
-
-	// Return descriptor with ULID prefix.
-	return append(bid, bpd...)
-}
-
-// Extracts the ULID from a composite key.
-func decodeCompositeKey(k []byte) (ulid.ULID, string) {
-	const ulidLength = 16
-	const descriptorLength = 16
-	const totalLength = ulidLength + descriptorLength
-
-	if len(k) < (ulidLength + descriptorLength) {
-		log.Fatalf("[error-api] invalid composite key (should be exactly %d bytes)", totalLength)
-	}
-	// Return the first 16 bytes of the composite key, which is the ULID.
-	var id ulid.ULID
-	if err := id.UnmarshalBinary(k[:ulidLength]); err != nil {
-		log.Fatalf("[error-api] unmarshaling ULID: %v", err)
-	}
-	descriptor := string(k[ulidLength:totalLength])
-	trimmedDescriptor := strings.TrimRight(descriptor, "\x00")
-
-	return id, trimmedDescriptor
 }

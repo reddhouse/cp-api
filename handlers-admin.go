@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/oklog/ulid"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -39,9 +40,11 @@ func handleLogBucket(w http.ResponseWriter, req *http.Request) {
 		c := b.Cursor()
 
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			id, d := decodeCompositeKey(k)
-			prettyKey := fmt.Sprintf("%s.%s", id, d)
-			fmt.Printf("%v | %s\n", prettyKey, v)
+			var id ulid.ULID
+			if err := id.UnmarshalBinary(k); err != nil {
+				log.Fatalf("[error-api] unmarshaling ULID: %v", err)
+			}
+			fmt.Printf("%s | %s\n", id, v)
 		}
 		return nil
 	})

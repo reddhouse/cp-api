@@ -46,9 +46,21 @@ func main() {
 
 	// Create db buckets.
 	dbErr = db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucketIfNotExists([]byte("USER"))
+		_, err := tx.CreateBucketIfNotExists([]byte("USER_EMAIL"))
 		if err != nil {
-			return fmt.Errorf("error creating bucket: %s", err)
+			return fmt.Errorf("error creating USER_EMAIL bucket: %s", err)
+		}
+		_, err = tx.CreateBucketIfNotExists([]byte("USER_VERIFIED"))
+		if err != nil {
+			return fmt.Errorf("error creating USER_VERIFIED bucket: %s", err)
+		}
+		_, err = tx.CreateBucketIfNotExists([]byte("USER_ADDR"))
+		if err != nil {
+			return fmt.Errorf("error creating USER_ADDR bucket: %s", err)
+		}
+		_, err = tx.CreateBucketIfNotExists([]byte("USER_AUTH"))
+		if err != nil {
+			return fmt.Errorf("error creating USER_AUTH bucket: %s", err)
 		}
 		return nil
 	})
