@@ -24,6 +24,8 @@ type user struct {
 	AuthGrp authGroup
 }
 
+const maxLoginCodeAttempts = 3
+
 func handleSignup(w http.ResponseWriter, req *http.Request) {
 	type requestBody struct {
 		Email string `json:"email"`
@@ -40,13 +42,13 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	if err := verifyContentType(w, req); err != nil {
 		return
 	}
-	// Decode JSON request body (stream) into responseBody struct.
+	// Decode JSON request body (stream) into requestBody struct.
 	if err := decodeJsonIntoStruct(w, req, &requestBodyInst); err != nil {
 		return
 	}
 
 	// Create ULID and db key(s).
-	id, binaryId := createUlid()
+	id, binId := createUlid()
 
 	// Update user instance.
 	userInst.UserId = id
@@ -88,10 +90,10 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		}
 
 		// Write key/value pairs.
-		if err := eb.Put(binaryId, []byte(userInst.Email)); err != nil {
+		if err := eb.Put(binId, []byte(userInst.Email)); err != nil {
 			return err
 		}
-		if err := ab.Put(binaryId, agJs); err != nil {
+		if err := ab.Put(binId, agJs); err != nil {
 			return err
 		}
 
@@ -121,27 +123,108 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// func handleLoginCode(w http.ResponseWriter, req *http.Request) {
-// 	type requestBody struct {
-// 		Email string `json:"email"`
-// 	}
-// 	type responseBody struct {
-// 		Token string `json:"token"`
-// 	}
-// 	var userInst user
-// 	var requestBodyInst requestBody
+func handleLoginCode(w http.ResponseWriter, req *http.Request) {
+	type requestBody struct {
+		UserId string `json:"userId"`
+		Code   int    `json:"code"`
+	}
+	type responseBody struct {
+		Token             string `json:"token"`
+		RemainingAttempts int    `json:"remainingAttempts"`
+	}
+	var userInst user
+	var requestBodyInst requestBody
 
-// 	log.Printf("Handling GET to %s\n", req.URL.Path)
+	log.Printf("Handling GET to %s\n", req.URL.Path)
 
-// 	// Enforce JSON Content-Type.
-// 	if err := verifyContentType(w, req); err != nil {
-// 		return
-// 	}
-// 	// Decode JSON request body (stream) into responseBody struct.
-// 	if err := decodeJsonIntoStruct(w, req, &requestBodyInst); err != nil {
-// 		return
-// 	}
+	// Enforce JSON Content-Type.
+	if err := verifyContentType(w, req); err != nil {
+		return
+	}
+	// Decode JSON request body (stream) into requestBody struct.
+	if err := decodeJsonIntoStruct(w, req, &requestBodyInst); err != nil {
+		return
+	}
 
-// 	// Lookup userId by email, and retrieve corresponding authGroup.
+	id, err := ulid.Parse(requestBodyInst.UserId)
+	if err != nil {
+		log.Printf("[error-api] parsing UserId into ULID: %v", err)
+		err = fmt.Errorf("error parsing UserId into ULID: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-// }
+	userInst.UserId = id
+
+	// Lookup userId by email, and retrieve corresponding authGroup.
+	err = db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("USER_AUTH"))
+
+		binId, err := userInst.UserId.MarshalBinary()
+		if err != nil {
+			log.Fatalf("[error-api] marshaling ULID: %v", err)
+		}
+
+		// Retrieve authGroup. Unmarshal into userInst.
+		authGrp := b.Get(binId)
+		if authGrp == nil {
+			return errors.New("authGroup does not exist for specified userId")
+		}
+
+		err = json.Unmarshal(authGrp, &userInst.AuthGrp)
+		if err != nil {
+			return err
+		}
+
+		// If loginAttempts have been exceeded, return error.
+		if userInst.AuthGrp.LoginAttempts >= maxLoginCodeAttempts {
+			return errors.New("login attempts exceeded")
+		}
+
+		// Check loginCode and adust loginAttempts as necessary.
+		if userInst.AuthGrp.LoginCode == requestBodyInst.Code {
+			userInst.AuthGrp.LoginAttempts = 0
+		} else {
+			userInst.AuthGrp.LoginAttempts++
+		}
+
+		// Write loginAttempts back to db.
+		agJs, err := json.Marshal(userInst.AuthGrp)
+		if err != nil {
+			return err
+		}
+		if err := b.Put(binId, agJs); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	// Send response, first error case.
+	if err != nil {
+		log.Printf("[error-api] updating db in login-code transaction: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Send response, second error case.
+	if userInst.AuthGrp.LoginCode != requestBodyInst.Code {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	// Generate token.
+	rawToken := fmt.Sprintf("cooperative-party.%s.%s", userInst.AuthGrp.LoginCode, userInst.AuthGrp.SignoutTs)
+	signedToken := signMessage(rawToken)
+
+	// Marshal response struct for response payload.
+	resJs, err := json.Marshal(responseBody{Token: string(signedToken), RemainingAttempts: maxLoginCodeAttempts - userInst.AuthGrp.LoginAttempts})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Send http response, success case.
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(resJs)
+}

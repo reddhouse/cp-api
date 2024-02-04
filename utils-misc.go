@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"log"
 	mathRand "math/rand"
 	"os"
@@ -60,13 +59,10 @@ func getOrGeneratePrivateKey() {
 	}
 }
 
-func signMessage() {
-	// Message to sign.
-	message := "Hello, world!"
-
+func signMessage(msg string) []byte {
 	// Compute hash of the message.
 	hash := sha256.New()
-	hash.Write([]byte(message))
+	hash.Write([]byte(msg))
 	hashedMessage := hash.Sum(nil)
 
 	// Sign the hashed message.
@@ -75,7 +71,7 @@ func signMessage() {
 		panic(err)
 	}
 
-	fmt.Printf("Signature: %x\n", signature)
+	return signature
 }
 
 // Generates a 6 digit code for password-less login.

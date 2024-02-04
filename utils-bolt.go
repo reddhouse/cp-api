@@ -20,10 +20,10 @@ func createUlid() (ulid.ULID, []byte) {
 		log.Fatalf("[error-api] creating ULID: %v", err)
 	}
 
-	bid, err := id.MarshalBinary()
+	binId, err := id.MarshalBinary()
 	if err != nil {
 		log.Fatalf("[error-api] marshaling ULID: %v", err)
 	}
 
-	return id, bid
+	return id, binId
 }
