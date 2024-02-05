@@ -29,12 +29,13 @@ func verifyContentType(w http.ResponseWriter, req *http.Request) error {
 	return nil
 }
 
-func decodeJsonIntoDst(w http.ResponseWriter, r *http.Request, dst interface{}) error {
+// Decodes and unmarshals the JSON request body into the provided destination.
+func unmarshalJson(w http.ResponseWriter, r *http.Request, dst interface{}) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	err := dec.Decode(dst)
 	if err != nil {
-		err = fmt.Errorf("failed to decode JSON into struct: %w", err)
+		err = fmt.Errorf("failed to unmarshal JSON into struct: %w", err)
 		log.Printf("[error-api] decoding JSON: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return err
@@ -42,7 +43,8 @@ func decodeJsonIntoDst(w http.ResponseWriter, r *http.Request, dst interface{}) 
 	return nil
 }
 
-func decodeUlidIntoDst(w http.ResponseWriter, r *http.Request, dstId *ulid.ULID, strId string) error {
+// Unmarshals a ULID from a string into a ulid.ULID type (16-byte array).
+func unmarshalUlid(w http.ResponseWriter, dst *ulid.ULID, strId string) error {
 	id, err := ulid.ParseStrict(strId)
 	if err != nil {
 		err = fmt.Errorf("failed to parse ULID from string: %v", err)
@@ -50,6 +52,21 @@ func decodeUlidIntoDst(w http.ResponseWriter, r *http.Request, dstId *ulid.ULID,
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return err
 	}
-	*dstId = id
+	*dst = id
+	return nil
+}
+
+// Encodes and responds with the provided struct as JSON.
+func encodeJsonAndRespond(w http.ResponseWriter, src interface{}) error {
+	enc := json.NewEncoder(w)
+	w.Header().Set("Content-Type", "application/json")
+	// Write JSON directly to the ResponseWriter.
+	err := enc.Encode(src)
+	if err != nil {
+		err = fmt.Errorf("failed to marshal struct into JSON: %w", err)
+		log.Printf("[error-api] encoding JSON: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return err
+	}
 	return nil
 }
