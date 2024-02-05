@@ -43,7 +43,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// Decode JSON request body (stream) into requestBody struct.
-	if err := decodeJsonIntoStruct(w, req, &requestBodyInst); err != nil {
+	if err := decodeJsonIntoDst(w, req, &requestBodyInst); err != nil {
 		return
 	}
 
@@ -142,22 +142,17 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// Decode JSON request body (stream) into requestBody struct.
-	if err := decodeJsonIntoStruct(w, req, &requestBodyInst); err != nil {
+	if err := decodeJsonIntoDst(w, req, &requestBodyInst); err != nil {
 		return
 	}
 
-	id, err := ulid.Parse(requestBodyInst.UserId)
-	if err != nil {
-		log.Printf("[error-api] parsing UserId into ULID: %v", err)
-		err = fmt.Errorf("error parsing UserId into ULID: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// Decode userId from string into userInst.UserId (type ulid.ULID).
+	if err := decodeUlidIntoDst(w, req, &userInst.UserId, requestBodyInst.UserId); err != nil {
 		return
 	}
-
-	userInst.UserId = id
 
 	// Lookup userId by email, and retrieve corresponding authGroup.
-	err = db.Update(func(tx *bolt.Tx) error {
+	err := db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("USER_AUTH"))
 
 		binId, err := userInst.UserId.MarshalBinary()
@@ -218,7 +213,7 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 	signedToken := signMessage(rawToken)
 
 	// Marshal response struct for response payload.
-	resJs, err := json.Marshal(responseBody{Token: string(signedToken), RemainingAttempts: maxLoginCodeAttempts - userInst.AuthGrp.LoginAttempts})
+	resJs, err := json.Marshal(responseBody{Token: signedToken, RemainingAttempts: maxLoginCodeAttempts - userInst.AuthGrp.LoginAttempts})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

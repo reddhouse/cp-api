@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"log"
 	mathRand "math/rand"
@@ -59,7 +60,8 @@ func getOrGeneratePrivateKey() {
 	}
 }
 
-func signMessage(msg string) []byte {
+// Returns a base64Url encoded signature of the message.
+func signMessage(msg string) string {
 	// Compute hash of the message.
 	hash := sha256.New()
 	hash.Write([]byte(msg))
@@ -71,7 +73,7 @@ func signMessage(msg string) []byte {
 		panic(err)
 	}
 
-	return signature
+	return base64.URLEncoding.EncodeToString(signature)
 }
 
 // Generates a 6 digit code for password-less login.

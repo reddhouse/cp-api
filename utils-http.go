@@ -7,6 +7,8 @@ import (
 	"log"
 	"mime"
 	"net/http"
+
+	"github.com/oklog/ulid"
 )
 
 func verifyContentType(w http.ResponseWriter, req *http.Request) error {
@@ -27,7 +29,7 @@ func verifyContentType(w http.ResponseWriter, req *http.Request) error {
 	return nil
 }
 
-func decodeJsonIntoStruct(w http.ResponseWriter, r *http.Request, dst interface{}) error {
+func decodeJsonIntoDst(w http.ResponseWriter, r *http.Request, dst interface{}) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	err := dec.Decode(dst)
@@ -37,5 +39,17 @@ func decodeJsonIntoStruct(w http.ResponseWriter, r *http.Request, dst interface{
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return err
 	}
+	return nil
+}
+
+func decodeUlidIntoDst(w http.ResponseWriter, r *http.Request, dstId *ulid.ULID, strId string) error {
+	id, err := ulid.ParseStrict(strId)
+	if err != nil {
+		err = fmt.Errorf("failed to parse ULID from string: %v", err)
+		log.Printf("[error-api] unmarshaling ULID: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return err
+	}
+	*dstId = id
 	return nil
 }
