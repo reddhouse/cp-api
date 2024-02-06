@@ -15,7 +15,7 @@ import (
 type authGroup struct {
 	LoginCode     int       `json:"loginCode,omitempty"`
 	LoginAttempts int       `json:"loginAttempts"`
-	SignoutTs     time.Time `json:"signoutTs"`
+	LogoutTs      time.Time `json:"logoutTs"`
 }
 
 type user struct {
@@ -56,7 +56,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	userInst.Email = requestBodyInst.Email
 	userInst.AuthGrp.LoginCode = generateLoginCode()
 	userInst.AuthGrp.LoginAttempts = 0
-	
+
 	responseBodyInst.UserId = id.String()
 
 	// Marshal authGroup to be stored.
@@ -224,7 +224,6 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 	// Read authGroup. Write authGroup.loginAttempts.
 	err := db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("USER_AUTH"))
-
 		// Convert ulid to byte slice to use as db key.
 		binId, err := userInst.UserId.MarshalBinary()
 		if err != nil {
@@ -279,10 +278,70 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Success. Create and reply with token.
-	rawToken := fmt.Sprintf("cooperative-party.%s.%s", userInst.AuthGrp.LoginCode, userInst.AuthGrp.SignoutTs)
+	rawToken := fmt.Sprintf("cooperative-party.%s.%s", userInst.AuthGrp.LoginCode, userInst.AuthGrp.LogoutTs)
 	signedToken := signMessage(rawToken)
 
 	responseBodyInst.Token = signedToken
 
 	encodeJsonAndRespond(w, responseBodyInst)
+}
+
+func handleLogout(w http.ResponseWriter, req *http.Request) {
+	type requestBody struct {
+		UserId string `json:"userId"`
+	}
+	var userInst user
+	var requestBodyInst requestBody
+
+	log.Printf("Handling POST to %s\n", req.URL.Path)
+
+	// Enforce JSON Content-Type.
+	if err := verifyContentType(w, req); err != nil {
+		return
+	}
+	// Decode & unmarshal JSON request body (stream) into requestBody struct.
+	if err := unmarshalJson(w, req, &requestBodyInst); err != nil {
+		return
+	}
+	// Decode & unmarshal ulid from string into userInst.UserId.
+	if err := unmarshalUlid(w, &userInst.UserId, requestBodyInst.UserId); err != nil {
+		return
+	}
+
+	// Write loginCode and logoutTs.
+	err := db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("USER_AUTH"))
+		// Convert ulid to byte slice to use as db key.
+		binId, err := userInst.UserId.MarshalBinary()
+		if err != nil {
+			log.Fatalf("[error-api] marshaling ULID: %v", err)
+		}
+		// Explicitly set LoginAttempts to zero, even though they were reset
+		// during login-code validation, and even though the marshaling process
+		// would default to zero value anyway.
+		userInst.AuthGrp.LoginAttempts = 0
+		// Generate new login code and set logoutTs to now.
+		userInst.AuthGrp.LoginCode = generateLoginCode()
+		userInst.AuthGrp.LogoutTs = time.Now()
+		// Marshal authGroup to be stored.
+		agJs, err := json.Marshal(userInst.AuthGrp)
+		if err != nil {
+			return err
+		}
+		// Write authGroup back to db.
+		if err := b.Put(binId, agJs); err != nil {
+			return err
+		}
+		return nil
+	})
+
+	// Handle database error.
+	if err != nil {
+		log.Printf("[error-api] updating db in logout transaction: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Success. Respond with 204 No Content.
+	w.WriteHeader(http.StatusNoContent)
 }
