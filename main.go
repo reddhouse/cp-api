@@ -80,8 +80,10 @@ func main() {
 
 	// Register handler functions.
 	mux.HandleFunc("POST /user/signup/", handleSignup)
+	mux.HandleFunc("POST /user/login/", handleLogin)
 	mux.HandleFunc("POST /user/login-code/", handleLoginCode)
-	mux.HandleFunc("POST /admin/log-bucket/{bucket}", handleLogBucket)
+	mux.HandleFunc("POST /admin/log-bucket-custom-key/{bucket}", handleLogBucketUlidValue)
+	mux.HandleFunc("POST /admin/log-bucket/{bucket}", handleLogBucketUlidKey)
 	mux.HandleFunc("POST /admin/shutdown/", func(w http.ResponseWriter, req *http.Request) {
 		handleShutdownServer(w, req, server)
 	})

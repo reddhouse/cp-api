@@ -31,7 +31,7 @@ func handleShutdownServer(w http.ResponseWriter, req *http.Request, server *http
 	w.Write([]byte("Bye!\n"))
 }
 
-func handleLogBucket(w http.ResponseWriter, req *http.Request) {
+func handleLogBucketUlidKey(w http.ResponseWriter, req *http.Request) {
 	log.Printf("Handling POST to %s\n", req.URL.Path)
 	bucket := req.PathValue("bucket")
 	err := db.View(func(tx *bolt.Tx) error {
@@ -45,6 +45,34 @@ func handleLogBucket(w http.ResponseWriter, req *http.Request) {
 				log.Fatalf("[error-api] unmarshaling ULID: %v", err)
 			}
 			fmt.Printf("%s | %s\n", id, v)
+		}
+		return nil
+	})
+
+	if err != nil {
+		fmt.Printf("[api-debug] error: %v\n", err)
+		// Send a 500 Internal Server Error status code
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
+	// Send a 200 OK status code
+	w.WriteHeader(http.StatusOK)
+}
+
+func handleLogBucketUlidValue(w http.ResponseWriter, req *http.Request) {
+	log.Printf("Handling POST to %s\n", req.URL.Path)
+	bucket := req.PathValue("bucket")
+	err := db.View(func(tx *bolt.Tx) error {
+		// Assume bucket exists and has keys.
+		b := tx.Bucket([]byte(bucket))
+		c := b.Cursor()
+
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var id ulid.ULID
+			if err := id.UnmarshalBinary(v); err != nil {
+				log.Fatalf("[error-api] unmarshaling ULID: %v", err)
+			}
+			fmt.Printf("%s | %s\n", k, id)
 		}
 		return nil
 	})

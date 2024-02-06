@@ -51,12 +51,12 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	// Create ULID and db key(s).
 	id, binId := createUlid()
 
-	// Update user instance.
+	// Update instance fields.
 	userInst.UserId = id
 	userInst.Email = requestBodyInst.Email
 	userInst.AuthGrp.LoginCode = generateLoginCode()
 	userInst.AuthGrp.LoginAttempts = 0
-	// Update response instance.
+	
 	responseBodyInst.UserId = id.String()
 
 	// Marshal authGroup to be stored.
@@ -66,7 +66,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Create user in database.
+	// Write email and authGroup to database.
 	err = db.Update(func(tx *bolt.Tx) error {
 		// Retrieve buckets.
 		eb := tx.Bucket([]byte("USER_EMAIL"))
@@ -86,7 +86,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		}
 
 		// Write key/value pairs.
-		if err := eb.Put(binId, []byte(userInst.Email)); err != nil {
+		if err := eb.Put([]byte(userInst.Email), binId); err != nil {
 			return err
 		}
 		if err := ab.Put(binId, agJs); err != nil {
@@ -107,9 +107,83 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	// Success. Reply with userId.
 	encodeJsonAndRespond(w, responseBodyInst)
 
-	// Send email to user if in production environment.
+	// Send email to user in production environment.
 	if env != nil && *env == "prod" {
 		err = sendEmail(userInst.Email, "Login code for Cooperative Party!", fmt.Sprintf("Thanks for signing up! You may now login using the following code: %v", userInst.AuthGrp.LoginCode))
+		if err != nil {
+			log.Printf("[error-api] sending email to user: %v", err)
+		}
+	} else {
+		// Todo: Store code in admin struct in database to facilitate testing.
+	}
+}
+
+func handleLogin(w http.ResponseWriter, req *http.Request) {
+	type requestBody struct {
+		Email string `json:"email"`
+	}
+	type responseBody struct {
+		UserId string `json:"userId"`
+	}
+	var userInst user
+	var requestBodyInst requestBody
+	var responseBodyInst responseBody
+
+	log.Printf("Handling POST to %s\n", req.URL.Path)
+
+	// Enforce JSON Content-Type.
+	if err := verifyContentType(w, req); err != nil {
+		return
+	}
+	// Decode & unmarshal JSON request body (stream) into requestBody struct.
+	if err := unmarshalJson(w, req, &requestBodyInst); err != nil {
+		return
+	}
+
+	userInst.Email = requestBodyInst.Email
+
+	// Read userId and authGrp.
+	err := db.View(func(tx *bolt.Tx) error {
+		eb := tx.Bucket([]byte("USER_EMAIL"))
+		ab := tx.Bucket([]byte("USER_AUTH"))
+		// Retrieve userId from email.
+		binId := eb.Get([]byte(requestBodyInst.Email))
+		if binId == nil {
+			return errors.New("provided email is not on file")
+		}
+		// Unmarshal userId into userInst.
+		err := userInst.UserId.UnmarshalBinary(binId)
+		if err != nil {
+			return err
+		}
+		// Retrieve authGroup.
+		authGrp := ab.Get(binId)
+		if authGrp == nil {
+			return errors.New("authGroup does not exist for the userId with corresponds with the provided email")
+		}
+		// Unmarshal authGrp into userInst.
+		err = json.Unmarshal(authGrp, &userInst.AuthGrp)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	// Handle database error.
+	if err != nil {
+		log.Printf("[error-api] querying db for user email: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	responseBodyInst.UserId = userInst.UserId.String()
+
+	// Success. Reply with userId.
+	encodeJsonAndRespond(w, responseBodyInst)
+
+	// Send email to user in production environment.
+	if env != nil && *env == "prod" {
+		err = sendEmail(userInst.Email, "Login code for Cooperative Party!", fmt.Sprintf("It looks like you're attempting to login to Cooperative Party. Please proceed by entering the following code: %v", userInst.AuthGrp.LoginCode))
 		if err != nil {
 			log.Printf("[error-api] sending email to user: %v", err)
 		}
