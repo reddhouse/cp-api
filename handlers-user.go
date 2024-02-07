@@ -74,7 +74,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 
 		// Check if email already exists.
 		err := eb.ForEach(func(k, v []byte) error {
-			if string(v) == userInst.Email {
+			if string(k) == userInst.Email {
 				return errors.New("email already exists")
 			}
 			return nil
@@ -215,7 +215,6 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 	if err := unmarshalJson(w, req, &requestBodyInst); err != nil {
 		return
 	}
-
 	// Decode & unmarshal ulid from string into userInst.UserId.
 	if err := unmarshalUlid(w, &userInst.UserId, requestBodyInst.UserId); err != nil {
 		return
