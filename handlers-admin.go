@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -85,4 +86,46 @@ func handleLogBucketUlidValue(w http.ResponseWriter, req *http.Request) {
 
 	// Send a 200 OK status code
 	w.WriteHeader(http.StatusOK)
+}
+
+func handleGetUserAuthGrp(w http.ResponseWriter, req *http.Request) {
+	var userInst user
+	log.Printf("Handling POST to %s\n", req.URL.Path)
+	strId := req.PathValue("ulid")
+
+	// Decode & unmarshal ulid from string into userInst.UserId.
+	if err := unmarshalUlid(w, &userInst.UserId, strId); err != nil {
+		return
+	}
+	// Convert ulid to byte slice to use as db key.
+	binId, err := userInst.UserId.MarshalBinary()
+	if err != nil {
+		log.Fatalf("[error-api] marshaling ULID: %v", err)
+	}
+
+	// Read user from db.
+	err = db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("USER_AUTH"))
+		// Retrieve authGroup from userId.
+		authGrp := b.Get(binId)
+		if authGrp == nil {
+			return fmt.Errorf("authGroup does not exist for the userId")
+		}
+		// Unmarshal authGrp into userInst.
+		err := json.Unmarshal(authGrp, &userInst.AuthGrp)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	// Handle database error.
+	if err != nil {
+		log.Printf("[error-api] querying db for user's authGroup: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Success. Reply with user authGroup.
+	encodeJsonAndRespond(w, userInst.AuthGrp)
 }

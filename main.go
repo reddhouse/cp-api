@@ -62,6 +62,10 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("error creating USER_AUTH bucket: %s", err)
 		}
+		_, err = tx.CreateBucketIfNotExists([]byte("BYPASS"))
+		if err != nil {
+			return fmt.Errorf("error creating BYPASS bucket: %s", err)
+		}
 		return nil
 	})
 
@@ -83,6 +87,7 @@ func main() {
 	mux.HandleFunc("POST /user/login/", handleLogin)
 	mux.HandleFunc("POST /user/login-code/", handleLoginCode)
 	mux.HandleFunc("POST /user/logout/", handleLogout)
+	mux.HandleFunc("GET /admin/bypass-email/{ulid}", handleGetUserAuthGrp)
 	mux.HandleFunc("POST /admin/log-bucket-custom-key/{bucket}", handleLogBucketUlidValue)
 	mux.HandleFunc("POST /admin/log-bucket/{bucket}", handleLogBucketUlidKey)
 	mux.HandleFunc("POST /admin/shutdown/", func(w http.ResponseWriter, req *http.Request) {
