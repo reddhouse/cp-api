@@ -86,7 +86,7 @@ func main() {
 	mux.HandleFunc("POST /user/signup/", handleSignup)
 	mux.HandleFunc("POST /user/login/", handleLogin)
 	mux.HandleFunc("POST /user/login-code/", handleLoginCode)
-	mux.HandleFunc("POST /user/logout/", handleLogout)
+	mux.HandleFunc("POST /user/logout/", authMiddleware(handleLogout))
 	mux.HandleFunc("GET /admin/bypass-email/{ulid}", handleGetUserAuthGrp)
 	mux.HandleFunc("POST /admin/log-bucket-custom-key/{bucket}", handleLogBucketUlidValue)
 	mux.HandleFunc("POST /admin/log-bucket/{bucket}", handleLogBucketUlidKey)

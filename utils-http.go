@@ -16,6 +16,7 @@ func verifyContentType(w http.ResponseWriter, req *http.Request) error {
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	// Unrecognized media type.
 	if err != nil {
+		log.Printf("[error-api] parsing media type: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return err
 	}

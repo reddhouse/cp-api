@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto"
-	"crypto/rand"
 	cryptoRand "crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -22,7 +21,7 @@ func getOrGeneratePrivateKey() {
 	if os.IsNotExist(err) {
 		var err error
 		// The private key file does not exist, so generate a new key.
-		cpPrivateKey, err = rsa.GenerateKey(rand.Reader, 2048)
+		cpPrivateKey, err = rsa.GenerateKey(cryptoRand.Reader, 2048)
 		if err != nil {
 			log.Fatalf("[error-api] creating private key: %v", err)
 		}
@@ -74,6 +73,30 @@ func signMessage(msg string) string {
 	}
 
 	return base64.URLEncoding.EncodeToString(signature)
+}
+
+// Verifies the signature of a message.
+func verifySignature(msg, signature string) bool {
+	// Compute hash of the message.
+	hash := sha256.New()
+	hash.Write([]byte(msg))
+	hashedMessage := hash.Sum(nil)
+
+	// Decode the signature.
+	decodedSignature, err := base64.URLEncoding.DecodeString(signature)
+	if err != nil {
+		log.Printf("[error-api] decoding signature: %v", err)
+		return false
+	}
+
+	// Verify the signature.
+	err = rsa.VerifyPKCS1v15(&cpPrivateKey.PublicKey, crypto.SHA256, hashedMessage, decodedSignature)
+	if err != nil {
+		log.Printf("[error-api] verifying signature: %v", err)
+		return false
+	}
+
+	return true
 }
 
 // Generates a 6 digit code for password-less login.

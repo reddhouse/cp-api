@@ -43,7 +43,7 @@ func handleLogBucketUlidKey(w http.ResponseWriter, req *http.Request) {
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			var id ulid.ULID
 			if err := id.UnmarshalBinary(k); err != nil {
-				log.Fatalf("[error-api] unmarshaling ULID: %v", err)
+				return err
 			}
 			fmt.Printf("%s | %s\n", id, v)
 		}
@@ -71,7 +71,7 @@ func handleLogBucketUlidValue(w http.ResponseWriter, req *http.Request) {
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			var id ulid.ULID
 			if err := id.UnmarshalBinary(v); err != nil {
-				log.Fatalf("[error-api] unmarshaling ULID: %v", err)
+				return err
 			}
 			fmt.Printf("%s | %s\n", k, id)
 		}
@@ -100,7 +100,9 @@ func handleGetUserAuthGrp(w http.ResponseWriter, req *http.Request) {
 	// Convert ulid to byte slice to use as db key.
 	binId, err := userInst.UserId.MarshalBinary()
 	if err != nil {
-		log.Fatalf("[error-api] marshaling ULID: %v", err)
+		log.Printf("[error-api] marshaling ULID: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	// Read user from db.

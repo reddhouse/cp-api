@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/oklog/ulid"
@@ -25,6 +27,78 @@ type user struct {
 }
 
 const maxLoginCodeAttempts = 3
+
+// Check authorization header for "Bearer " prefix and valid token.
+func authMiddleware(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
+	// Return a closure that captures and calls the "next" handler in the call chain.
+	return func(w http.ResponseWriter, r *http.Request) {
+		var userInst user
+		var authHeader = r.Header.Get("Authorization")
+
+		// Check if the Authorization header starts with "Bearer "
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			err := errors.New("invalid Authorization header")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Strip "Bearer " from the beginning of the token
+		trimmedHeader := strings.TrimPrefix(authHeader, "Bearer ")
+
+		var parts = strings.Split(trimmedHeader, ".")
+		if len(parts) != 2 {
+			err := errors.New("authorization header should consist of two parts")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		var reqUserId = parts[0]
+		var reqSessionInfo = parts[1]
+
+		// Decode & unmarshal ulid from string into userInst.UserId.
+		if err := unmarshalUlid(w, &userInst.UserId, reqUserId); err != nil {
+			return
+		}
+
+		// Read authGroup.
+		err := db.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("USER_AUTH"))
+			// Convert ulid to byte slice to use as db key.
+			binId, err := userInst.UserId.MarshalBinary()
+			if err != nil {
+				return err
+			}
+			// Retrieve authGroup.
+			authGrp := b.Get(binId)
+			if authGrp == nil {
+				return errors.New("authGroup does not exist for specified userId")
+			}
+			// Unmarshal authGrp into userInst.
+			err = json.Unmarshal(authGrp, &userInst.AuthGrp)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+
+		// Handle database error.
+		if err != nil {
+			log.Printf("[error-api] retrieving authGrp from db: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		currentSessionInfo := fmt.Sprintf("%s.%s", strconv.Itoa(userInst.AuthGrp.LoginCode), userInst.AuthGrp.LogoutTs)
+
+		// Verify signature of session info.
+		if !verifySignature(currentSessionInfo, reqSessionInfo) {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Call the next handler in the chain.
+		next(w, r)
+	}
+}
 
 func handleSignup(w http.ResponseWriter, req *http.Request) {
 	type requestBody struct {
@@ -226,7 +300,7 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 		// Convert ulid to byte slice to use as db key.
 		binId, err := userInst.UserId.MarshalBinary()
 		if err != nil {
-			log.Fatalf("[error-api] marshaling ULID: %v", err)
+			return err
 		}
 		// Retrieve authGroup.
 		authGrp := b.Get(binId)
@@ -277,10 +351,9 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Success. Create and reply with token.
-	rawToken := fmt.Sprintf("cooperative-party.%s.%s", userInst.AuthGrp.LoginCode, userInst.AuthGrp.LogoutTs)
-	signedToken := signMessage(rawToken)
-
-	responseBodyInst.Token = signedToken
+	sessionInfo := fmt.Sprintf("%s.%s", strconv.Itoa(userInst.AuthGrp.LoginCode), userInst.AuthGrp.LogoutTs)
+	signedSessionInfo := signMessage(sessionInfo)
+	responseBodyInst.Token = fmt.Sprintf("%s.%s", userInst.UserId, signedSessionInfo)
 
 	encodeJsonAndRespond(w, responseBodyInst)
 }
@@ -313,7 +386,7 @@ func handleLogout(w http.ResponseWriter, req *http.Request) {
 		// Convert ulid to byte slice to use as db key.
 		binId, err := userInst.UserId.MarshalBinary()
 		if err != nil {
-			log.Fatalf("[error-api] marshaling ULID: %v", err)
+			return err
 		}
 		// Explicitly set LoginAttempts to zero, even though they were reset
 		// during login-code validation, and even though the marshaling process
