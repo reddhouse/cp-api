@@ -2,9 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"log"
 	"mime"
 	"net/http"
 
@@ -16,14 +14,14 @@ func verifyContentType(w http.ResponseWriter, req *http.Request) error {
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	// Unrecognized media type.
 	if err != nil {
-		log.Printf("[error-api] parsing media type: %v", err)
+		fmt.Printf("[err][api] parsing media type: %v [%s]\n", err, cts())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return err
 	}
 	// Unsupported media type.
 	if mediaType != "application/json" {
-		err := errors.New("expected application/json Content-Type")
-		log.Printf("[error-api] verifying content type: %v", err)
+		err := fmt.Errorf("expected application/json Content-Type")
+		fmt.Printf("[err][api] verifying content type: %v [%s]\n", err, cts())
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 		return err
 	}
@@ -37,7 +35,7 @@ func unmarshalJson(w http.ResponseWriter, r *http.Request, dst interface{}) erro
 	err := dec.Decode(dst)
 	if err != nil {
 		err = fmt.Errorf("failed to unmarshal JSON into struct: %w", err)
-		log.Printf("[error-api] decoding JSON: %v", err)
+		fmt.Printf("[err][api] decoding JSON: %v [%s]\n", err, cts())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return err
 	}
@@ -49,7 +47,7 @@ func unmarshalUlid(w http.ResponseWriter, dst *ulid.ULID, strId string) error {
 	id, err := ulid.ParseStrict(strId)
 	if err != nil {
 		err = fmt.Errorf("failed to parse ULID from string: %v", err)
-		log.Printf("[error-api] unmarshaling ULID: %v", err)
+		fmt.Printf("[err][api] unmarshaling ULID: %v [%s]\n", err, cts())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return err
 	}
@@ -65,9 +63,21 @@ func encodeJsonAndRespond(w http.ResponseWriter, src interface{}) error {
 	err := enc.Encode(src)
 	if err != nil {
 		err = fmt.Errorf("failed to marshal struct into JSON: %w", err)
-		log.Printf("[error-api] encoding JSON: %v", err)
+		fmt.Printf("[err][api] encoding JSON: %v [%s]\n", err, cts())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return err
 	}
 	return nil
+}
+
+// Convert ulid to byte slice to use as db key.
+func getBinId(w http.ResponseWriter, ulid ulid.ULID) ([]byte, error) {
+	binId, err := ulid.MarshalBinary()
+	if err != nil {
+		err = fmt.Errorf("failed to marshal ULID to binary: %w", err)
+		fmt.Printf("[err][api] marshaling ULID: %v [%s]\n", err, cts())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return nil, err
+	}
+	return binId, nil
 }

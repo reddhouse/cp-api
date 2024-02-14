@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 
@@ -18,12 +17,12 @@ var env *string
 func loadEnvVariables() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("[error-api] loading .env file")
+		fmt.Printf("[err][api] loading .env file: %v [%s]\n", err, cts())
+		os.Exit(1)
 	}
 }
 
 func main() {
-	log.SetPrefix("[cp-api] ")
 	// Parse command line flag.
 	env = flag.String("env", "dev", "environment in which to run server (dev, prod)")
 	flag.Parse()
@@ -32,7 +31,7 @@ func main() {
 	if env != nil && *env == "prod" {
 		loadEnvVariables()
 	}
-	log.Printf("Main.go has PID: %v", os.Getpid())
+	fmt.Printf("[api] main.go has PID: %v [%s]\n", os.Getpid(), cts())
 
 	// Generate private key. Write to disk.
 	getOrGeneratePrivateKey()
@@ -40,7 +39,8 @@ func main() {
 	// Open (create if it doesn't exist) cp.db data file current directory.
 	db, dbErr = bolt.Open("cp.db", 0600, nil)
 	if dbErr != nil {
-		log.Fatalf("[error-api] opening database: %v", dbErr)
+		fmt.Printf("[err][api] opening database: %v [%s]\n", dbErr, cts())
+		os.Exit(1)
 	}
 	defer db.Close()
 
@@ -48,29 +48,30 @@ func main() {
 	dbErr = db.Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists([]byte("USER_EMAIL"))
 		if err != nil {
-			return fmt.Errorf("error creating USER_EMAIL bucket: %s", err)
+			return fmt.Errorf("error creating USER_EMAIL bucket: %w", err)
 		}
 		_, err = tx.CreateBucketIfNotExists([]byte("USER_VERIFIED"))
 		if err != nil {
-			return fmt.Errorf("error creating USER_VERIFIED bucket: %s", err)
+			return fmt.Errorf("error creating USER_VERIFIED bucket: %w", err)
 		}
 		_, err = tx.CreateBucketIfNotExists([]byte("USER_ADDR"))
 		if err != nil {
-			return fmt.Errorf("error creating USER_ADDR bucket: %s", err)
+			return fmt.Errorf("error creating USER_ADDR bucket: %w", err)
 		}
 		_, err = tx.CreateBucketIfNotExists([]byte("USER_AUTH"))
 		if err != nil {
-			return fmt.Errorf("error creating USER_AUTH bucket: %s", err)
+			return fmt.Errorf("error creating USER_AUTH bucket: %w", err)
 		}
 		_, err = tx.CreateBucketIfNotExists([]byte("BYPASS"))
 		if err != nil {
-			return fmt.Errorf("error creating BYPASS bucket: %s", err)
+			return fmt.Errorf("error creating BYPASS bucket: %w", err)
 		}
 		return nil
 	})
 
 	if dbErr != nil {
-		log.Fatalf("[error-api] updating database: %v", dbErr)
+		fmt.Printf("[err][api] updating database: %v [%s]\n", dbErr, cts())
+		os.Exit(1)
 	}
 
 	// Create HTTP request multiplexer.
@@ -94,10 +95,11 @@ func main() {
 		handleShutdownServer(w, req, server)
 	})
 
-	log.Println("Starting server on port 8000...")
+	fmt.Printf("[api] starting server on port 8000... [%s]\n", cts())
 
 	// Serve it up.
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
-		log.Fatalf("[error-api] starting server: %v", err)
+		fmt.Printf("[err][api] starting server: %v [%s]\n", err, cts())
+		os.Exit(1)
 	}
 }

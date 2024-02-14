@@ -2,9 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -37,8 +35,8 @@ func authMiddleware(next func(http.ResponseWriter, *http.Request)) func(http.Res
 
 		// Check if the Authorization header starts with "Bearer "
 		if !strings.HasPrefix(authHeader, "Bearer ") {
-			err := errors.New("invalid Authorization header")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			err := fmt.Errorf("invalid Authorization header")
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -47,8 +45,8 @@ func authMiddleware(next func(http.ResponseWriter, *http.Request)) func(http.Res
 
 		var parts = strings.Split(trimmedHeader, ".")
 		if len(parts) != 2 {
-			err := errors.New("authorization header should consist of two parts")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			err := fmt.Errorf("authorization header should consist of two parts")
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		var reqUserId = parts[0]
@@ -70,7 +68,7 @@ func authMiddleware(next func(http.ResponseWriter, *http.Request)) func(http.Res
 			// Retrieve authGroup.
 			authGrp := b.Get(binId)
 			if authGrp == nil {
-				return errors.New("authGroup does not exist for specified userId")
+				return fmt.Errorf("authGroup does not exist for specified userId")
 			}
 			// Unmarshal authGrp into userInst.
 			err = json.Unmarshal(authGrp, &userInst.AuthGrp)
@@ -82,14 +80,16 @@ func authMiddleware(next func(http.ResponseWriter, *http.Request)) func(http.Res
 
 		// Handle database error.
 		if err != nil {
-			log.Printf("[error-api] retrieving authGrp from db: %v", err)
+			fmt.Printf("[err][api] retrieving authGrp from db: %v [%s]\n", err, cts())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
+		// Put login code + current session info into the same format as the
+		// the signed part of an Auth token.
 		currentSessionInfo := fmt.Sprintf("%s.%s", strconv.Itoa(userInst.AuthGrp.LoginCode), userInst.AuthGrp.LogoutTs)
 
-		// Verify signature of session info.
+		// Verify signature of the signed part of an Auth token.
 		if !verifySignature(currentSessionInfo, reqSessionInfo) {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -111,7 +111,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	var requestBodyInst requestBody
 	var responseBodyInst responseBody
 
-	log.Printf("Handling POST to %s\n", req.URL.Path)
+	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
 
 	// Enforce JSON Content-Type.
 	if err := verifyContentType(w, req); err != nil {
@@ -149,7 +149,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		// Check if email already exists.
 		err := eb.ForEach(func(k, v []byte) error {
 			if string(k) == userInst.Email {
-				return errors.New("email already exists")
+				return fmt.Errorf("email already exists")
 			}
 			return nil
 		})
@@ -172,7 +172,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 
 	// Handle database error.
 	if err != nil {
-		log.Printf("[error-api] updating db with new user: %v", err)
+		fmt.Printf("[err][api] updating db with new user: %v [%s]\n", err, cts())
 		const statusUnprocessableEntity = 422
 		http.Error(w, err.Error(), statusUnprocessableEntity)
 		return
@@ -185,10 +185,8 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	if env != nil && *env == "prod" {
 		err = sendEmail(userInst.Email, "Login code for Cooperative Party!", fmt.Sprintf("Thanks for signing up! You may now login using the following code: %v", userInst.AuthGrp.LoginCode))
 		if err != nil {
-			log.Printf("[error-api] sending email to user: %v", err)
+			fmt.Printf("[err][api] sending email to user: %v [%s]\n", err, cts())
 		}
-	} else {
-		// Todo: Store code in admin struct in database to facilitate testing.
 	}
 }
 
@@ -203,7 +201,7 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 	var requestBodyInst requestBody
 	var responseBodyInst responseBody
 
-	log.Printf("Handling POST to %s\n", req.URL.Path)
+	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
 
 	// Enforce JSON Content-Type.
 	if err := verifyContentType(w, req); err != nil {
@@ -223,7 +221,7 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 		// Retrieve userId from email.
 		binId := eb.Get([]byte(requestBodyInst.Email))
 		if binId == nil {
-			return errors.New("provided email is not on file")
+			return fmt.Errorf("provided email is not on file")
 		}
 		// Unmarshal userId into userInst.
 		err := userInst.UserId.UnmarshalBinary(binId)
@@ -233,7 +231,7 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 		// Retrieve authGroup.
 		authGrp := ab.Get(binId)
 		if authGrp == nil {
-			return errors.New("authGroup does not exist for the userId with corresponds with the provided email")
+			return fmt.Errorf("authGroup does not exist for the userId with corresponds with the provided email")
 		}
 		// Unmarshal authGrp into userInst.
 		err = json.Unmarshal(authGrp, &userInst.AuthGrp)
@@ -245,7 +243,7 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 
 	// Handle database error.
 	if err != nil {
-		log.Printf("[error-api] querying db for user email: %v", err)
+		fmt.Printf("[err][api] querying db for user email: %v [%s]\n", err, cts())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -259,10 +257,8 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 	if env != nil && *env == "prod" {
 		err = sendEmail(userInst.Email, "Login code for Cooperative Party!", fmt.Sprintf("It looks like you're attempting to login to Cooperative Party. Please proceed by entering the following code: %v", userInst.AuthGrp.LoginCode))
 		if err != nil {
-			log.Printf("[error-api] sending email to user: %v", err)
+			fmt.Printf("[err][api] sending email to user: %v [%s]\n", err, cts())
 		}
-	} else {
-		// Todo: Store code in admin struct in database to facilitate testing.
 	}
 }
 
@@ -279,7 +275,7 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 	var requestBodyInst requestBody
 	var responseBodyInst responseBody
 
-	log.Printf("Handling GET to %s\n", req.URL.Path)
+	fmt.Printf("[api] handling GET to %s [%s]\n", req.URL.Path, cts())
 
 	// Enforce JSON Content-Type.
 	if err := verifyContentType(w, req); err != nil {
@@ -305,7 +301,7 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 		// Retrieve authGroup.
 		authGrp := b.Get(binId)
 		if authGrp == nil {
-			return errors.New("authGroup does not exist for specified userId")
+			return fmt.Errorf("authGroup does not exist for specified userId")
 		}
 		// Unmarshal authGrp into userInst.
 		err = json.Unmarshal(authGrp, &userInst.AuthGrp)
@@ -314,7 +310,7 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 		}
 		// If loginAttempts have been exceeded, return error.
 		if userInst.AuthGrp.LoginAttempts >= maxLoginCodeAttempts {
-			return errors.New("login attempts exceeded")
+			return fmt.Errorf("login attempts exceeded")
 		}
 		// Check loginCode and adust loginAttempts as necessary.
 		if userInst.AuthGrp.LoginCode == requestBodyInst.Code {
@@ -337,7 +333,7 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 
 	// Handle database error.
 	if err != nil {
-		log.Printf("[error-api] updating db in login-code transaction: %v", err)
+		fmt.Printf("[err][api] updating db in login-code transaction: %v [%s]\n", err, cts())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -365,7 +361,7 @@ func handleLogout(w http.ResponseWriter, req *http.Request) {
 	var userInst user
 	var requestBodyInst requestBody
 
-	log.Printf("Handling POST to %s\n", req.URL.Path)
+	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
 
 	// Enforce JSON Content-Type.
 	if err := verifyContentType(w, req); err != nil {
@@ -409,7 +405,7 @@ func handleLogout(w http.ResponseWriter, req *http.Request) {
 
 	// Handle database error.
 	if err != nil {
-		log.Printf("[error-api] updating db in logout transaction: %v", err)
+		fmt.Printf("[err][api] updating db in logout transaction: %v [%s]\n", err, cts())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

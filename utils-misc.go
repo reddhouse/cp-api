@@ -8,9 +8,10 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	"log"
+	"fmt"
 	mathRand "math/rand"
 	"os"
+	"time"
 )
 
 var cpPrivateKey *rsa.PrivateKey
@@ -23,7 +24,8 @@ func getOrGeneratePrivateKey() {
 		// The private key file does not exist, so generate a new key.
 		cpPrivateKey, err = rsa.GenerateKey(cryptoRand.Reader, 2048)
 		if err != nil {
-			log.Fatalf("[error-api] creating private key: %v", err)
+			fmt.Printf("[err][api] creating private key: %v [%s]\n", err, cts())
+			os.Exit(1)
 		}
 
 		// Encode the private key into PEM format.
@@ -36,25 +38,29 @@ func getOrGeneratePrivateKey() {
 		// Write the PEM to a file.
 		err = os.WriteFile("cp.pem", privateKeyPEM, 0600)
 		if err != nil {
-			log.Fatalf("[error-api] writing private key to disk: %v", err)
+			fmt.Printf("[err][api] writing private key to disk: %v [%s]\n", err, cts())
+			os.Exit(1)
 		}
 	} else {
 		var privateKeyPEM []byte
 		// The private key file exists, so read it.
 		privateKeyPEM, err := os.ReadFile("cp.pem")
 		if err != nil {
-			log.Fatalf("[error-api] reading private key file: %v", err)
+			fmt.Printf("[err][api] reading private key file: %v [%s]\n", err, cts())
+			os.Exit(1)
 		}
 
 		// Decode the PEM file into a private key.
 		block, _ := pem.Decode(privateKeyPEM)
 		if block == nil || block.Type != "RSA PRIVATE KEY" {
-			log.Fatalf("[error-api] decoding PEM block containing private key")
+			fmt.Printf("[err][api] decoding PEM block containing private key [%s]\n", cts())
+			os.Exit(1)
 		}
 
 		cpPrivateKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
-			log.Fatalf("[error-api] parsing encoded private key: %v", err)
+			fmt.Printf("[err][api] parsing encoded private key: %v [%s]\n", err, cts())
+			os.Exit(1)
 		}
 	}
 }
@@ -85,14 +91,14 @@ func verifySignature(msg, signature string) bool {
 	// Decode the signature.
 	decodedSignature, err := base64.URLEncoding.DecodeString(signature)
 	if err != nil {
-		log.Printf("[error-api] decoding signature: %v", err)
+		fmt.Printf("[err][api] decoding signature: %v [%s]\n", err, cts())
 		return false
 	}
 
 	// Verify the signature.
 	err = rsa.VerifyPKCS1v15(&cpPrivateKey.PublicKey, crypto.SHA256, hashedMessage, decodedSignature)
 	if err != nil {
-		log.Printf("[error-api] verifying signature: %v", err)
+		fmt.Printf("[err][api] verifying signature: %v [%s]\n", err, cts())
 		return false
 	}
 
@@ -102,4 +108,10 @@ func verifySignature(msg, signature string) bool {
 // Generates a 6 digit code for password-less login.
 func generateLoginCode() int {
 	return mathRand.Intn(900000) + 100000
+}
+
+// Returns a custom timestamp (cts) for time.Now() as Day/HH:MM:SS
+func cts() string {
+	t := time.Now()
+	return fmt.Sprintf("%02d/%02d%02d%02d", t.Day(), t.Hour(), t.Minute(), t.Second())
 }

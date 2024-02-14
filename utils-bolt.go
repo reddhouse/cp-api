@@ -1,7 +1,8 @@
 package main
 
 import (
-	"log"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/oklog/ulid"
@@ -17,12 +18,14 @@ func createUlid() (ulid.ULID, []byte) {
 	entropy := rand.New(rand.NewSource(uint64(t.UnixNano())))
 	id, err := ulid.New(ulid.Timestamp(t), entropy)
 	if err != nil {
-		log.Fatalf("[error-api] creating ULID: %v", err)
+		fmt.Printf("[err][api] creating ULID: %v [%s]\n", err, cts())
+		os.Exit(1)
 	}
 
 	binId, err := id.MarshalBinary()
 	if err != nil {
-		log.Fatalf("[error-api] marshaling ULID: %v", err)
+		fmt.Printf("[err][api] marshaling ULID: %v [%s]\n", err, cts())
+		os.Exit(1)
 	}
 
 	return id, binId

@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/oklog/ulid"
@@ -13,8 +13,8 @@ import (
 )
 
 func handleShutdownServer(w http.ResponseWriter, req *http.Request, server *http.Server) {
-	log.Printf("Handling POST to %s\n", req.URL.Path)
-	log.Println("Shutting down server...")
+	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
+	fmt.Printf("[api] shutting down server... [%s]\n", cts())
 	// Use a separate goroutine to allow HTTP handler to finish and send its
 	// response back to the client in it the main goroutine.
 	go func() {
@@ -25,15 +25,16 @@ func handleShutdownServer(w http.ResponseWriter, req *http.Request, server *http
 		// new requests, waiting up to 5 seconds for all currently processing
 		// requests to finish.
 		if err := server.Shutdown(ctx); err != nil {
-			log.Fatalf("[error-api] shutting down server: %v", err)
+			fmt.Printf("[err][api] shutting down server: %v [%s]\n", err, cts())
+			os.Exit(1)
 		}
 	}()
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte("Bye!\n"))
+	w.Write([]byte("bye!\n"))
 }
 
 func handleLogBucketUlidKey(w http.ResponseWriter, req *http.Request) {
-	log.Printf("Handling POST to %s\n", req.URL.Path)
+	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
 	bucket := req.PathValue("bucket")
 	err := db.View(func(tx *bolt.Tx) error {
 		// Assume bucket exists and has keys.
@@ -51,7 +52,7 @@ func handleLogBucketUlidKey(w http.ResponseWriter, req *http.Request) {
 	})
 
 	if err != nil {
-		fmt.Printf("[api-debug] error: %v\n", err)
+		fmt.Printf("[err][api] getting ulid-k/v pairs from db: %v [%s]\n", err, cts())
 		// Send a 500 Internal Server Error status code
 		w.WriteHeader(http.StatusInternalServerError)
 	}
@@ -61,7 +62,7 @@ func handleLogBucketUlidKey(w http.ResponseWriter, req *http.Request) {
 }
 
 func handleLogBucketUlidValue(w http.ResponseWriter, req *http.Request) {
-	log.Printf("Handling POST to %s\n", req.URL.Path)
+	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
 	bucket := req.PathValue("bucket")
 	err := db.View(func(tx *bolt.Tx) error {
 		// Assume bucket exists and has keys.
@@ -79,7 +80,7 @@ func handleLogBucketUlidValue(w http.ResponseWriter, req *http.Request) {
 	})
 
 	if err != nil {
-		fmt.Printf("[api-debug] error: %v\n", err)
+		fmt.Printf("[err][api] getting k/ulid-v pairs from db: %v [%s]\n", err, cts())
 		// Send a 500 Internal Server Error status code
 		w.WriteHeader(http.StatusInternalServerError)
 	}
@@ -90,7 +91,7 @@ func handleLogBucketUlidValue(w http.ResponseWriter, req *http.Request) {
 
 func handleGetUserAuthGrp(w http.ResponseWriter, req *http.Request) {
 	var userInst user
-	log.Printf("Handling POST to %s\n", req.URL.Path)
+	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
 	strId := req.PathValue("ulid")
 
 	// Decode & unmarshal ulid from string into userInst.UserId.
@@ -98,10 +99,8 @@ func handleGetUserAuthGrp(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// Convert ulid to byte slice to use as db key.
-	binId, err := userInst.UserId.MarshalBinary()
+	binId, err := getBinId(w, userInst.UserId)
 	if err != nil {
-		log.Printf("[error-api] marshaling ULID: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -123,7 +122,7 @@ func handleGetUserAuthGrp(w http.ResponseWriter, req *http.Request) {
 
 	// Handle database error.
 	if err != nil {
-		log.Printf("[error-api] querying db for user's authGroup: %v", err)
+		fmt.Printf("[err][api] querying db for user's authGroup: %v [%s]\n", err, cts())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
