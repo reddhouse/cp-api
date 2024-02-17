@@ -9,20 +9,31 @@ import (
 	"github.com/oklog/ulid"
 )
 
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
+func sendErrorResponse(w http.ResponseWriter, err error, statusCode int) {
+	errRes := errorResponse{Error: err.Error()}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(errRes)
+}
+
 func verifyContentType(w http.ResponseWriter, req *http.Request) error {
 	contentType := req.Header.Get("Content-Type")
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	// Unrecognized media type.
 	if err != nil {
 		fmt.Printf("[err][api] parsing media type: %v [%s]\n", err, cts())
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		sendErrorResponse(w, err, http.StatusBadRequest)
 		return err
 	}
 	// Unsupported media type.
 	if mediaType != "application/json" {
 		err := fmt.Errorf("expected application/json Content-Type")
 		fmt.Printf("[err][api] verifying content type: %v [%s]\n", err, cts())
-		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+		sendErrorResponse(w, err, http.StatusUnsupportedMediaType)
 		return err
 	}
 	return nil
@@ -36,7 +47,7 @@ func unmarshalJson(w http.ResponseWriter, r *http.Request, dst interface{}) erro
 	if err != nil {
 		err = fmt.Errorf("failed to unmarshal JSON into struct: %w", err)
 		fmt.Printf("[err][api] decoding JSON: %v [%s]\n", err, cts())
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		sendErrorResponse(w, err, http.StatusBadRequest)
 		return err
 	}
 	return nil
@@ -48,7 +59,7 @@ func unmarshalUlid(w http.ResponseWriter, dst *ulid.ULID, strId string) error {
 	if err != nil {
 		err = fmt.Errorf("failed to parse ULID from string: %v", err)
 		fmt.Printf("[err][api] unmarshaling ULID: %v [%s]\n", err, cts())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendErrorResponse(w, err, http.StatusInternalServerError)
 		return err
 	}
 	*dst = id
@@ -64,7 +75,7 @@ func encodeJsonAndRespond(w http.ResponseWriter, src interface{}) error {
 	if err != nil {
 		err = fmt.Errorf("failed to marshal struct into JSON: %w", err)
 		fmt.Printf("[err][api] encoding JSON: %v [%s]\n", err, cts())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendErrorResponse(w, err, http.StatusInternalServerError)
 		return err
 	}
 	return nil
@@ -76,7 +87,7 @@ func getBinId(w http.ResponseWriter, ulid ulid.ULID) ([]byte, error) {
 	if err != nil {
 		err = fmt.Errorf("failed to marshal ULID to binary: %w", err)
 		fmt.Printf("[err][api] marshaling ULID: %v [%s]\n", err, cts())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendErrorResponse(w, err, http.StatusInternalServerError)
 		return nil, err
 	}
 	return binId, nil

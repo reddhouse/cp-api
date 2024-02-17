@@ -30,7 +30,7 @@ func handleShutdownServer(w http.ResponseWriter, req *http.Request, server *http
 		}
 	}()
 	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte("bye!\n"))
+	w.Write([]byte("bye!"))
 }
 
 func handleLogBucketUlidKey(w http.ResponseWriter, req *http.Request) {
@@ -123,7 +123,7 @@ func handleGetUserAuthGrp(w http.ResponseWriter, req *http.Request) {
 	// Handle database error.
 	if err != nil {
 		fmt.Printf("[err][api] querying db for user's authGroup: %v [%s]\n", err, cts())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendErrorResponse(w, err, http.StatusInternalServerError)
 		return
 	}
 

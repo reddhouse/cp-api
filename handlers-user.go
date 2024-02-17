@@ -36,7 +36,7 @@ func authMiddleware(next func(http.ResponseWriter, *http.Request)) func(http.Res
 		// Check if the Authorization header starts with "Bearer "
 		if !strings.HasPrefix(authHeader, "Bearer ") {
 			err := fmt.Errorf("invalid Authorization header")
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			sendErrorResponse(w, err, http.StatusBadRequest)
 			return
 		}
 
@@ -46,7 +46,7 @@ func authMiddleware(next func(http.ResponseWriter, *http.Request)) func(http.Res
 		var parts = strings.Split(trimmedHeader, ".")
 		if len(parts) != 2 {
 			err := fmt.Errorf("authorization header should consist of two parts")
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			sendErrorResponse(w, err, http.StatusBadRequest)
 			return
 		}
 		var reqUserId = parts[0]
@@ -81,7 +81,7 @@ func authMiddleware(next func(http.ResponseWriter, *http.Request)) func(http.Res
 		// Handle database error.
 		if err != nil {
 			fmt.Printf("[err][api] retrieving authGrp from db: %v [%s]\n", err, cts())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			sendErrorResponse(w, err, http.StatusInternalServerError)
 			return
 		}
 
@@ -91,7 +91,7 @@ func authMiddleware(next func(http.ResponseWriter, *http.Request)) func(http.Res
 
 		// Verify signature of the signed part of an Auth token.
 		if !verifySignature(currentSessionInfo, reqSessionInfo) {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			sendErrorResponse(w, fmt.Errorf("Unauthorized"), http.StatusUnauthorized)
 			return
 		}
 
@@ -174,7 +174,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		fmt.Printf("[err][api] updating db with new user: %v [%s]\n", err, cts())
 		const statusUnprocessableEntity = 422
-		http.Error(w, err.Error(), statusUnprocessableEntity)
+		sendErrorResponse(w, err, statusUnprocessableEntity)
 		return
 	}
 
@@ -244,7 +244,7 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 	// Handle database error.
 	if err != nil {
 		fmt.Printf("[err][api] querying db for user email: %v [%s]\n", err, cts())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendErrorResponse(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -334,7 +334,7 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 	// Handle database error.
 	if err != nil {
 		fmt.Printf("[err][api] updating db in login-code transaction: %v [%s]\n", err, cts())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendErrorResponse(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -406,7 +406,7 @@ func handleLogout(w http.ResponseWriter, req *http.Request) {
 	// Handle database error.
 	if err != nil {
 		fmt.Printf("[err][api] updating db in logout transaction: %v [%s]\n", err, cts())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendErrorResponse(w, err, http.StatusInternalServerError)
 		return
 	}
 
