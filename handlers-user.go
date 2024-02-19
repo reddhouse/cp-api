@@ -149,7 +149,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		// Check if email already exists.
 		err := eb.ForEach(func(k, v []byte) error {
 			if string(k) == userInst.Email {
-				return fmt.Errorf("email already exists")
+				return fmt.Errorf("email already exists (%s)", userInst.Email)
 			}
 			return nil
 		})
@@ -221,7 +221,7 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 		// Retrieve userId from email.
 		binId := eb.Get([]byte(requestBodyInst.Email))
 		if binId == nil {
-			return fmt.Errorf("provided email is not on file")
+			return fmt.Errorf("provided email is not on file (%s)", requestBodyInst.Email)
 		}
 		// Unmarshal userId into userInst.
 		err := userInst.UserId.UnmarshalBinary(binId)
