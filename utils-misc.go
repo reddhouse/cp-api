@@ -14,36 +14,15 @@ import (
 	"time"
 )
 
-var cpPrivateKey *rsa.PrivateKey
-
-func getOrGeneratePrivateKey() {
-	// Check if the private key file exists.
+func setPrivateKey() {
+	// If the private key file does not exist, exit the program.
 	_, err := os.Stat("cp.pem")
 	if os.IsNotExist(err) {
-		var err error
-		// The private key file does not exist, so generate a new key.
-		cpPrivateKey, err = rsa.GenerateKey(cryptoRand.Reader, 2048)
-		if err != nil {
-			fmt.Printf("[err][api] creating private key: %v [%s]\n", err, cts())
-			os.Exit(1)
-		}
-
-		// Encode the private key into PEM format.
-		privateKeyBytes := x509.MarshalPKCS1PrivateKey(cpPrivateKey)
-		privateKeyPEM := pem.EncodeToMemory(&pem.Block{
-			Type:  "RSA PRIVATE KEY",
-			Bytes: privateKeyBytes,
-		})
-
-		// Write the PEM to a file.
-		err = os.WriteFile("cp.pem", privateKeyPEM, 0600)
-		if err != nil {
-			fmt.Printf("[err][api] writing private key to disk: %v [%s]\n", err, cts())
-			os.Exit(1)
-		}
+		fmt.Printf("[err][api] private key file is not present; use cp-admin to generate and copy: %v [%s]\n", err, cts())
+		os.Exit(1)
 	} else {
+		// The private key file exists; read it and set global variable.
 		var privateKeyPEM []byte
-		// The private key file exists, so read it.
 		privateKeyPEM, err := os.ReadFile("cp.pem")
 		if err != nil {
 			fmt.Printf("[err][api] reading private key file: %v [%s]\n", err, cts())

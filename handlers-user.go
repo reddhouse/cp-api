@@ -27,7 +27,7 @@ type user struct {
 const maxLoginCodeAttempts = 3
 
 // Check authorization header for "Bearer " prefix and valid token.
-func authMiddleware(next func(http.ResponseWriter, *http.Request)) func(http.ResponseWriter, *http.Request) {
+func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	// Return a closure that captures and calls the "next" handler in the call chain.
 	return func(w http.ResponseWriter, r *http.Request) {
 		var userInst user

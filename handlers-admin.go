@@ -6,11 +6,68 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/oklog/ulid"
 	bolt "go.etcd.io/bbolt"
 )
+
+// Check custom admin-auth header for valid token, and call next handler in chain.
+func adminMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	// Return a closure that captures and calls the "next" handler in the call chain.
+	return func(w http.ResponseWriter, r *http.Request) {
+		var adminId ulid.ULID
+		var authHeader = r.Header.Get("Admin-Authorization")
+		// An auth header has no prefix, and is made up of an ULID and a
+		// key-signed signature of that same ULID, separated by a period.
+		var parts = strings.Split(authHeader, ".")
+		if len(parts) != 2 {
+			err := fmt.Errorf("authorization header should consist of two parts")
+			sendErrorResponse(w, err, http.StatusBadRequest)
+			return
+		}
+		var reqAdminId = parts[0]
+		var reqSignature = parts[1]
+
+		// Decode & unmarshal ulid from string into adminId.
+		if err := unmarshalUlid(w, &adminId, reqAdminId); err != nil {
+			return
+		}
+
+		// Read authGroup.
+		err := db.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("ADMIN_EMAIL"))
+			// Convert ulid to byte slice to use as db key.
+			binId, err := adminId.MarshalBinary()
+			if err != nil {
+				return err
+			}
+			// Check is adminId exists as key in ADMIN_EMAIL bucket.
+			emailAddr := b.Get(binId)
+			if emailAddr == nil {
+				return fmt.Errorf("administrator does not exist for specified adminId")
+			}
+			return nil
+		})
+
+		// Handle database error.
+		if err != nil {
+			fmt.Printf("[err][api] getting admin info from db: %v [%s]\n", err, cts())
+			sendErrorResponse(w, err, http.StatusInternalServerError)
+			return
+		}
+
+		// Verify signature of the signed part of the Admin-Authorization token.
+		if !verifySignature(reqAdminId, reqSignature) {
+			sendErrorResponse(w, fmt.Errorf("Unauthorized"), http.StatusUnauthorized)
+			return
+		}
+
+		// Call the next handler in the chain.
+		next(w, r)
+	}
+}
 
 func handleShutdownServer(w http.ResponseWriter, req *http.Request, server *http.Server) {
 	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
