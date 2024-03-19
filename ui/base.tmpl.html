@@ -1,0 +1,32 @@
+{{define "base"}}
+<!doctype html>
+<html lang='en'>
+    <head>
+        <meta charset='utf-8'>
+        <!--
+        Prevent zoom-out (default) on mobile browsers by setting the width of 
+        the viewport to the width of the device, and specify no zoom (scale=1).
+        -->
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Cooperative Party | {{template "title" .}}</title>
+        <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png">
+        <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32x32.png">
+        <link rel="icon" type="image/png" sizes="16x16" href="/static/icons/favicon-16x16.png">
+        <link rel="manifest" href="/static/icons/site.webmanifest">
+        <link rel='stylesheet' href='/static/stylesheet.css'>
+    </head>
+    <body>
+        <header>
+            <div class="header__whereami">Cooperative Party</div>
+            {{template "partial-nav" .}}
+        </header>
+        <main>
+            {{template "main" .}}
+        </main>
+        <footer>
+          <div>© 2024, Cooperative Party</div>
+          <script src="/static/main.js" type="text/javascript"></script>
+        </footer>
+    </body>
+</html>
+{{end}}

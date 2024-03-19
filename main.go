@@ -94,6 +94,9 @@ func main() {
 	// Set global private key variable.
 	setPrivateKey()
 
+	// Create file server.
+	fileServer := http.FileServer(http.Dir("./ui/static/"))
+
 	// Create HTTP request multiplexer.
 	mux := http.NewServeMux()
 
@@ -103,7 +106,11 @@ func main() {
 		Handler: mux,
 	}
 
-	// Register handler functions. http.HandlerFunc() is a type conversion.
+	// Register handler functions.
+	mux.Handle("GET /static/", http.StripPrefix("/static", fileServer))
+	mux.HandleFunc("GET /", handleHome)
+	mux.HandleFunc("GET /exim/view", handleEximView)
+	mux.HandleFunc("GET /exim/create", handleEximCreate)
 	mux.HandleFunc("POST /user/signup/", handleSignup)
 	mux.HandleFunc("POST /user/login/", handleLogin)
 	mux.HandleFunc("POST /user/login-code/", handleLoginCode)

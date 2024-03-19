@@ -1,0 +1,70 @@
+/* Got BEM? https://getbem.com/naming/ */
+
+html {
+  height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  height: 100%;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--tw-gray-800);
+  background-color: white;
+}
+
+/* Force inheritance of border-box throughout app. */
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+
+
+/**
+* Variables
+*/
+
+/* Colors borrowed from Tailwind: https://tailwindcss.com/docs/customizing-colors. */
+:root {
+  --tw-gray-800: #1f2937;
+  --tw-violet-700: #6d28d9;
+}
+
+/**
+* Header
+*/
+
+header {
+  max-width: 1200px;
+  padding: 20px;
+  margin: 0 auto;
+}
+
+.header__whereami {
+  padding-top: 20px;
+  font-size: 20px;
+}
+
+/**
+* Main
+*/
+
+main {
+  max-width: 1200px;
+  padding: 20px;
+  margin: 0 auto;
+}
+
+/**
+* Footer
+*/
+
+footer {
+  max-width: 1200px;
+  padding: 20px;
+  margin: 0 auto;
+}
