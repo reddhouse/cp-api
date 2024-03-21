@@ -35,36 +35,51 @@ body {
 }
 
 /**
-* Header
+* Body
 */
 
-header {
-  max-width: 1200px;
-  padding: 20px;
-  margin: 0 auto;
+.body__flex-row {
+  display: flex;
+  height: 100%;
 }
 
-.header__whereami {
-  padding-top: 20px;
-  font-size: 20px;
+.body__left-column {
+  flex: 1 1 auto;
+  max-width: 200px;
+  background-color: var(--tw-gray-800);
 }
+
+.body__padding-column {
+  flex: 1 1 auto;
+  min-width: 20px;
+  max-width: 40px;
+}
+
+.body__right-column {
+  flex: 1 1 auto;
+  max-width: 600px;
+}
+
+/**
+* Header
+*/
+.nav__flex-row {
+  display: flex;
+  justify-content: space-between;
+  max-width: 180px;
+ }
+
+ /**
+* Nav
+*/
+header {
+  margin-top: 40px;
+ }
 
 /**
 * Main
 */
 
-main {
-  max-width: 1200px;
-  padding: 20px;
-  margin: 0 auto;
-}
-
 /**
 * Footer
 */
-
-footer {
-  max-width: 1200px;
-  padding: 20px;
-  margin: 0 auto;
-}
