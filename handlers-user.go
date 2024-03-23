@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,8 +13,11 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+// Go prefers that the key used in context.WithValue be of a custom type.
+type contextKeyType string
+
 type authGroup struct {
-	LoginCode     int       `json:"loginCode,omitempty"`
+	LoginCode     int       `json:"loginCode"`
 	LoginAttempts int       `json:"loginAttempts"`
 	LogoutTs      time.Time `json:"logoutTs"`
 }
@@ -24,14 +28,15 @@ type user struct {
 	AuthGrp authGroup
 }
 
+const userIdContextKey = contextKeyType("userId")
 const maxLoginCodeAttempts = 3
 
 // Check authorization header for "Bearer " prefix and valid token.
 func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	// Return a closure that captures and calls the "next" handler in the call chain.
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, req *http.Request) {
 		var userInst user
-		var authHeader = r.Header.Get("Authorization")
+		var authHeader = req.Header.Get("Authorization")
 
 		// Check if the Authorization header starts with "Bearer "
 		if !strings.HasPrefix(authHeader, "Bearer ") {
@@ -95,8 +100,11 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// Call the next handler in the chain.
-		next(w, r)
+		// Add userId to the request context.
+		ctx := context.WithValue(req.Context(), userIdContextKey, userInst.UserId)
+
+		// Call the next handler in the chain with context.
+		next.ServeHTTP(w, req.WithContext(ctx))
 	}
 }
 
@@ -107,8 +115,8 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	type responseBody struct {
 		UserId string `json:"userId"`
 	}
-	var userInst user
 	var requestBodyInst requestBody
+	var userInst user
 	var responseBodyInst responseBody
 
 	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
@@ -118,7 +126,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// Decode & unmarshal JSON request body (stream) into requestBody struct.
-	if err := unmarshalJson(w, req, &requestBodyInst); err != nil {
+	if err := unmarshalJson(w, &requestBodyInst, req); err != nil {
 		return
 	}
 
@@ -126,6 +134,7 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	id, binId := createUlid()
 
 	// Update instance fields.
+	// AuthGrp.LogoutTs will default to zero value.
 	userInst.UserId = id
 	userInst.Email = requestBodyInst.Email
 	userInst.AuthGrp.LoginCode = generateLoginCode()
@@ -197,8 +206,8 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 	type responseBody struct {
 		UserId string `json:"userId"`
 	}
-	var userInst user
 	var requestBodyInst requestBody
+	var userInst user
 	var responseBodyInst responseBody
 
 	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
@@ -208,7 +217,7 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// Decode & unmarshal JSON request body (stream) into requestBody struct.
-	if err := unmarshalJson(w, req, &requestBodyInst); err != nil {
+	if err := unmarshalJson(w, &requestBodyInst, req); err != nil {
 		return
 	}
 
@@ -264,15 +273,15 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 
 func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 	type requestBody struct {
-		UserId string `json:"userId,omitempty"`
-		Code   int    `json:"code,omitempty"`
+		UserId string `json:"userId"`
+		Code   int    `json:"code"`
 	}
 	type responseBody struct {
-		Token             string `json:"token,omitempty"`
+		Token             string `json:"token"`
 		RemainingAttempts int    `json:"remainingAttempts"`
 	}
-	var userInst user
 	var requestBodyInst requestBody
+	var userInst user
 	var responseBodyInst responseBody
 
 	fmt.Printf("[api] handling GET to %s [%s]\n", req.URL.Path, cts())
@@ -282,7 +291,7 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// Decode & unmarshal JSON request body (stream) into requestBody struct.
-	if err := unmarshalJson(w, req, &requestBodyInst); err != nil {
+	if err := unmarshalJson(w, &requestBodyInst, req); err != nil {
 		return
 	}
 	// Decode & unmarshal ulid from string into userInst.UserId.
@@ -358,8 +367,8 @@ func handleLogout(w http.ResponseWriter, req *http.Request) {
 	type requestBody struct {
 		UserId string `json:"userId"`
 	}
-	var userInst user
 	var requestBodyInst requestBody
+	var userInst user
 
 	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
 
@@ -368,7 +377,7 @@ func handleLogout(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// Decode & unmarshal JSON request body (stream) into requestBody struct.
-	if err := unmarshalJson(w, req, &requestBodyInst); err != nil {
+	if err := unmarshalJson(w, &requestBodyInst, req); err != nil {
 		return
 	}
 	// Decode & unmarshal ulid from string into userInst.UserId.

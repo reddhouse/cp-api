@@ -83,6 +83,9 @@ func main() {
 		if _, err := tx.CreateBucketIfNotExists([]byte("BYPASS")); err != nil {
 			return err
 		}
+		if _, err := tx.CreateBucketIfNotExists([]byte("MOD_EXIM")); err != nil {
+			return err
+		}
 		return nil
 	})
 
@@ -108,9 +111,10 @@ func main() {
 
 	// Register handler functions.
 	mux.Handle("GET /static/", http.StripPrefix("/static", fileServer))
-	mux.HandleFunc("GET /", handleHome)
-	mux.HandleFunc("GET /exim/view", handleEximView)
-	mux.HandleFunc("GET /exim/create", handleEximCreate)
+	mux.HandleFunc("GET /", ssrHome)
+	mux.HandleFunc("GET /exim/details/", ssrEximDetails)
+	mux.HandleFunc("GET /exim/create/", ssrCreateExim)
+	mux.HandleFunc("POST /exim/create/", authMiddleware(handleCreateExim))
 	mux.HandleFunc("POST /user/signup/", handleSignup)
 	mux.HandleFunc("POST /user/login/", handleLogin)
 	mux.HandleFunc("POST /user/login-code/", handleLoginCode)

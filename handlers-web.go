@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-func handleHome(w http.ResponseWriter, req *http.Request) {
+func ssrHome(w http.ResponseWriter, req *http.Request) {
 	// Subtree paths (ending with trailing slash) are essentially treated as
 	// catch-all routes by ServeMux. Return 404 response if not exact match.
 	if req.URL.Path != "/" {
@@ -40,10 +40,10 @@ func handleHome(w http.ResponseWriter, req *http.Request) {
 	// w.Write([]byte("Hello from Cooperative Party"))
 }
 
-func handleEximView(w http.ResponseWriter, req *http.Request) {
+func ssrEximDetails(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte("Display a specific exim..."))
 }
 
-func handleEximCreate(w http.ResponseWriter, req *http.Request) {
+func ssrCreateExim(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte("Create a new exim..."))
 }

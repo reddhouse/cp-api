@@ -40,8 +40,8 @@ func verifyContentType(w http.ResponseWriter, req *http.Request) error {
 }
 
 // Decodes and unmarshals the JSON request body into the provided destination.
-func unmarshalJson(w http.ResponseWriter, r *http.Request, dst interface{}) error {
-	dec := json.NewDecoder(r.Body)
+func unmarshalJson(w http.ResponseWriter, dst interface{}, req *http.Request) error {
+	dec := json.NewDecoder(req.Body)
 	dec.DisallowUnknownFields()
 	err := dec.Decode(dst)
 	if err != nil {
@@ -91,4 +91,18 @@ func getBinId(w http.ResponseWriter, ulid ulid.ULID) ([]byte, error) {
 		return nil, err
 	}
 	return binId, nil
+}
+
+// Get context provided by authMiddleware. Set the ULID value at pointer
+// destination. Send error response if required type assertion fails.
+func setUserIdFromContext(w http.ResponseWriter, dst *ulid.ULID, req *http.Request) error {
+	id, ok := req.Context().Value(userIdContextKey).(ulid.ULID)
+	if !ok {
+		err := fmt.Errorf("bad value for userId provided by auth middleware")
+		fmt.Printf("[err][api] reading context: %v [%s]\n", err, cts())
+		sendErrorResponse(w, err, http.StatusInternalServerError)
+		return err
+	}
+	*dst = id
+	return nil
 }
