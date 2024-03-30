@@ -81,7 +81,7 @@ func encodeJsonAndRespond(w http.ResponseWriter, src interface{}) error {
 	return nil
 }
 
-// Convert ulid to byte slice to use as db key.
+// Converts ulid to byte slice to use as db key.
 func getBinId(w http.ResponseWriter, ulid ulid.ULID) ([]byte, error) {
 	binId, err := ulid.MarshalBinary()
 	if err != nil {
@@ -93,7 +93,7 @@ func getBinId(w http.ResponseWriter, ulid ulid.ULID) ([]byte, error) {
 	return binId, nil
 }
 
-// Get context provided by authMiddleware. Set the ULID value at pointer
+// Gets context provided by authMiddleware. Set the ULID value at pointer
 // destination. Send error response if required type assertion fails.
 func setUserIdFromContext(w http.ResponseWriter, dst *ulid.ULID, req *http.Request) error {
 	id, ok := req.Context().Value(userIdContextKey).(ulid.ULID)

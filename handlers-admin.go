@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,11 +12,11 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-// Check custom admin-auth header for valid token, and call next handler in chain.
+// Checks custom admin-auth header for valid token, and call next handler in chain.
 func adminMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	// Return a closure that captures and calls the "next" handler in the call chain.
 	return func(w http.ResponseWriter, r *http.Request) {
-		var adminId ulid.ULID
+		var admin *Admin = new(Admin)
 		var authHeader = r.Header.Get("Admin-Authorization")
 		// An auth header has no prefix, and is made up of an ULID and a
 		// key-signed signature of that same ULID, separated by a period.
@@ -31,27 +30,12 @@ func adminMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		var reqSignature = parts[1]
 
 		// Decode & unmarshal ulid from string into adminId.
-		if err := unmarshalUlid(w, &adminId, reqAdminId); err != nil {
+		if err := unmarshalUlid(w, &admin.AdminId, reqAdminId); err != nil {
 			return
 		}
 
-		// Read authGroup.
-		err := db.View(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte("ADMIN_EMAIL"))
-			// Convert ulid to byte slice to use as db key.
-			binId, err := adminId.MarshalBinary()
-			if err != nil {
-				return err
-			}
-			// Check is adminId exists as key in ADMIN_EMAIL bucket.
-			emailAddr := b.Get(binId)
-			if emailAddr == nil {
-				return fmt.Errorf("administrator does not exist for specified adminId")
-			}
-			return nil
-		})
-
-		// Handle database error.
+		// Execute db transaction.
+		err := admin.adminMiddlewareTx()
 		if err != nil {
 			fmt.Printf("[err][api] getting admin info from db: %v [%s]\n", err, cts())
 			sendErrorResponse(w, err, http.StatusInternalServerError)
@@ -147,43 +131,29 @@ func handleLogBucketUlidValue(w http.ResponseWriter, req *http.Request) {
 }
 
 func handleGetUserAuthGrp(w http.ResponseWriter, req *http.Request) {
-	var userInst user
+	var user *User = new(User)
 	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
 	strId := req.PathValue("ulid")
 
-	// Decode & unmarshal ulid from string into userInst.UserId.
-	if err := unmarshalUlid(w, &userInst.UserId, strId); err != nil {
+	// Decode & unmarshal ulid from string into user.UserId.
+	if err := unmarshalUlid(w, &user.UserId, strId); err != nil {
 		return
 	}
+
 	// Convert ulid to byte slice to use as db key.
-	binId, err := getBinId(w, userInst.UserId)
+	binId, err := getBinId(w, user.UserId)
 	if err != nil {
 		return
 	}
 
-	// Read user from db.
-	err = db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("USER_AUTH"))
-		// Retrieve authGroup from userId.
-		authGrp := b.Get(binId)
-		if authGrp == nil {
-			return fmt.Errorf("authGroup does not exist for the userId")
-		}
-		// Unmarshal authGrp into userInst.
-		err := json.Unmarshal(authGrp, &userInst.AuthGrp)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-
-	// Handle database error.
+	// Execute db transaction.
+	err = user.authMiddlewareTx(binId)
 	if err != nil {
-		fmt.Printf("[err][api] querying db for user's authGroup: %v [%s]\n", err, cts())
+		fmt.Printf("[err][api] querying db for user's authGrp: %v [%s]\n", err, cts())
 		sendErrorResponse(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	// Success. Reply with user authGroup.
-	encodeJsonAndRespond(w, userInst.AuthGrp)
+	// Success. Reply with user authGrp.
+	encodeJsonAndRespond(w, user.AuthGrp)
 }

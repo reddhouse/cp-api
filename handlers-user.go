@@ -2,40 +2,24 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/oklog/ulid"
-	bolt "go.etcd.io/bbolt"
 )
 
 // Go prefers that the key used in context.WithValue be of a custom type.
 type contextKeyType string
 
-type authGroup struct {
-	LoginCode     int       `json:"loginCode"`
-	LoginAttempts int       `json:"loginAttempts"`
-	LogoutTs      time.Time `json:"logoutTs"`
-}
-
-type user struct {
-	UserId  ulid.ULID
-	Email   string
-	AuthGrp authGroup
-}
-
 const userIdContextKey = contextKeyType("userId")
 const maxLoginCodeAttempts = 3
 
-// Check authorization header for "Bearer " prefix and valid token.
+// Checks authorization header for "Bearer " prefix and valid token.
 func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	// Return a closure that captures and calls the "next" handler in the call chain.
 	return func(w http.ResponseWriter, req *http.Request) {
-		var userInst user
+		var user *User = new(User)
 		var authHeader = req.Header.Get("Authorization")
 
 		// Check if the Authorization header starts with "Bearer "
@@ -57,33 +41,19 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		var reqUserId = parts[0]
 		var reqSessionInfo = parts[1]
 
-		// Decode & unmarshal ulid from string into userInst.UserId.
-		if err := unmarshalUlid(w, &userInst.UserId, reqUserId); err != nil {
+		// Decode & unmarshal ulid from string into user.UserId.
+		if err := unmarshalUlid(w, &user.UserId, reqUserId); err != nil {
 			return
 		}
 
-		// Read authGroup.
-		err := db.View(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte("USER_AUTH"))
-			// Convert ulid to byte slice to use as db key.
-			binId, err := userInst.UserId.MarshalBinary()
-			if err != nil {
-				return err
-			}
-			// Retrieve authGroup.
-			authGrp := b.Get(binId)
-			if authGrp == nil {
-				return fmt.Errorf("authGroup does not exist for specified userId")
-			}
-			// Unmarshal authGrp into userInst.
-			err = json.Unmarshal(authGrp, &userInst.AuthGrp)
-			if err != nil {
-				return err
-			}
-			return nil
-		})
+		// Convert ulid to byte slice to use as db key.
+		binId, err := getBinId(w, user.UserId)
+		if err != nil {
+			return
+		}
 
-		// Handle database error.
+		// Execute db transaction.
+		err = user.authMiddlewareTx(binId)
 		if err != nil {
 			fmt.Printf("[err][api] retrieving authGrp from db: %v [%s]\n", err, cts())
 			sendErrorResponse(w, err, http.StatusInternalServerError)
@@ -92,7 +62,7 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		// Put login code + current session info into the same format as the
 		// the signed part of an Auth token.
-		currentSessionInfo := fmt.Sprintf("%s.%s", strconv.Itoa(userInst.AuthGrp.LoginCode), userInst.AuthGrp.LogoutTs)
+		currentSessionInfo := fmt.Sprintf("%s.%s", strconv.Itoa(user.AuthGrp.LoginCode), user.AuthGrp.LogoutTs)
 
 		// Verify signature of the signed part of an Auth token.
 		if !verifySignature(currentSessionInfo, reqSessionInfo) {
@@ -101,7 +71,7 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// Add userId to the request context.
-		ctx := context.WithValue(req.Context(), userIdContextKey, userInst.UserId)
+		ctx := context.WithValue(req.Context(), userIdContextKey, user.UserId)
 
 		// Call the next handler in the chain with context.
 		next.ServeHTTP(w, req.WithContext(ctx))
@@ -109,15 +79,15 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func handleSignup(w http.ResponseWriter, req *http.Request) {
-	type requestBody struct {
+	type ReqBody struct {
 		Email string `json:"email"`
 	}
-	type responseBody struct {
+	type ResBody struct {
 		UserId string `json:"userId"`
 	}
-	var requestBodyInst requestBody
-	var userInst user
-	var responseBodyInst responseBody
+	var reqBody ReqBody
+	var user *User = new(User)
+	var resBody ResBody
 
 	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
 
@@ -125,61 +95,24 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	if err := verifyContentType(w, req); err != nil {
 		return
 	}
-	// Decode & unmarshal JSON request body (stream) into requestBody struct.
-	if err := unmarshalJson(w, &requestBodyInst, req); err != nil {
+	// Decode & unmarshal JSON request body (stream) into ReqBody struct.
+	if err := unmarshalJson(w, &reqBody, req); err != nil {
 		return
 	}
 
-	// Create ULID and db key(s).
+	// Create ULID.
 	id, binId := createUlid()
 
-	// Update instance fields.
-	// AuthGrp.LogoutTs will default to zero value.
-	userInst.UserId = id
-	userInst.Email = requestBodyInst.Email
-	userInst.AuthGrp.LoginCode = generateLoginCode()
-	userInst.AuthGrp.LoginAttempts = 0
+	resBody.UserId = id.String()
 
-	responseBodyInst.UserId = id.String()
+	user.UserId = id
+	user.Email = reqBody.Email
+	user.AuthGrp.LoginCode = generateLoginCode()
+	user.AuthGrp.LoginAttempts = 0
+	// Note, AuthGrp.LogoutTs will default to zero value.
 
-	// Marshal authGroup to be stored.
-	agJs, err := json.Marshal(userInst.AuthGrp)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Write email and authGroup to database.
-	err = db.Update(func(tx *bolt.Tx) error {
-		// Retrieve buckets.
-		eb := tx.Bucket([]byte("USER_EMAIL"))
-		ab := tx.Bucket([]byte("USER_AUTH"))
-
-		// Check if email already exists.
-		err := eb.ForEach(func(k, v []byte) error {
-			if string(k) == userInst.Email {
-				return fmt.Errorf("email already exists (%s)", userInst.Email)
-			}
-			return nil
-		})
-
-		// Abort update if email already exists.
-		if err != nil {
-			return err
-		}
-
-		// Write key/value pairs.
-		if err := eb.Put([]byte(userInst.Email), binId); err != nil {
-			return err
-		}
-		if err := ab.Put(binId, agJs); err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	// Handle database error.
+	// Execute db transaction.
+	err := user.signupTx(binId)
 	if err != nil {
 		fmt.Printf("[err][api] updating db with new user: %v [%s]\n", err, cts())
 		const statusUnprocessableEntity = 422
@@ -188,11 +121,11 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Success. Reply with userId.
-	encodeJsonAndRespond(w, responseBodyInst)
+	encodeJsonAndRespond(w, resBody)
 
 	// Send email to user in production environment.
 	if env != nil && *env == "prod" {
-		err = sendEmail(userInst.Email, "Login code for Cooperative Party!", fmt.Sprintf("Thanks for signing up! You may now login using the following code: %v", userInst.AuthGrp.LoginCode))
+		err = sendEmail(user.Email, "Login code for Cooperative Party!", fmt.Sprintf("Thanks for signing up! You may now login using the following code: %v", user.AuthGrp.LoginCode))
 		if err != nil {
 			fmt.Printf("[err][api] sending email to user: %v [%s]\n", err, cts())
 		}
@@ -200,15 +133,15 @@ func handleSignup(w http.ResponseWriter, req *http.Request) {
 }
 
 func handleLogin(w http.ResponseWriter, req *http.Request) {
-	type requestBody struct {
+	type ReqBody struct {
 		Email string `json:"email"`
 	}
-	type responseBody struct {
+	type ResBody struct {
 		UserId string `json:"userId"`
 	}
-	var requestBodyInst requestBody
-	var userInst user
-	var responseBodyInst responseBody
+	var reqBody ReqBody
+	var user *User = new(User)
+	var resBody ResBody
 
 	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
 
@@ -216,55 +149,29 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 	if err := verifyContentType(w, req); err != nil {
 		return
 	}
-	// Decode & unmarshal JSON request body (stream) into requestBody struct.
-	if err := unmarshalJson(w, &requestBodyInst, req); err != nil {
+	// Decode & unmarshal JSON request body (stream) into ReqBody struct.
+	if err := unmarshalJson(w, &reqBody, req); err != nil {
 		return
 	}
 
-	userInst.Email = requestBodyInst.Email
+	user.Email = reqBody.Email
 
-	// Read userId and authGrp.
-	err := db.View(func(tx *bolt.Tx) error {
-		eb := tx.Bucket([]byte("USER_EMAIL"))
-		ab := tx.Bucket([]byte("USER_AUTH"))
-		// Retrieve userId from email.
-		binId := eb.Get([]byte(requestBodyInst.Email))
-		if binId == nil {
-			return fmt.Errorf("provided email is not on file (%s)", requestBodyInst.Email)
-		}
-		// Unmarshal userId into userInst.
-		err := userInst.UserId.UnmarshalBinary(binId)
-		if err != nil {
-			return err
-		}
-		// Retrieve authGroup.
-		authGrp := ab.Get(binId)
-		if authGrp == nil {
-			return fmt.Errorf("authGroup does not exist for the userId with corresponds with the provided email")
-		}
-		// Unmarshal authGrp into userInst.
-		err = json.Unmarshal(authGrp, &userInst.AuthGrp)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-
-	// Handle database error.
+	// Execute db transaction.
+	err := user.loginTx()
 	if err != nil {
 		fmt.Printf("[err][api] querying db for user email: %v [%s]\n", err, cts())
 		sendErrorResponse(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	responseBodyInst.UserId = userInst.UserId.String()
+	resBody.UserId = user.UserId.String()
 
 	// Success. Reply with userId.
-	encodeJsonAndRespond(w, responseBodyInst)
+	encodeJsonAndRespond(w, resBody)
 
 	// Send email to user in production environment.
 	if env != nil && *env == "prod" {
-		err = sendEmail(userInst.Email, "Login code for Cooperative Party!", fmt.Sprintf("It looks like you're attempting to login to Cooperative Party. Please proceed by entering the following code: %v", userInst.AuthGrp.LoginCode))
+		err = sendEmail(user.Email, "Login code for Cooperative Party!", fmt.Sprintf("It looks like you're attempting to login to Cooperative Party. Please proceed by entering the following code: %v", user.AuthGrp.LoginCode))
 		if err != nil {
 			fmt.Printf("[err][api] sending email to user: %v [%s]\n", err, cts())
 		}
@@ -272,17 +179,17 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 }
 
 func handleLoginCode(w http.ResponseWriter, req *http.Request) {
-	type requestBody struct {
+	type ReqBody struct {
 		UserId string `json:"userId"`
 		Code   int    `json:"code"`
 	}
-	type responseBody struct {
+	type ResBody struct {
 		Token             string `json:"token"`
 		RemainingAttempts int    `json:"remainingAttempts"`
 	}
-	var requestBodyInst requestBody
-	var userInst user
-	var responseBodyInst responseBody
+	var reqBody ReqBody
+	var user *User = new(User)
+	var resBody ResBody
 
 	fmt.Printf("[api] handling GET to %s [%s]\n", req.URL.Path, cts())
 
@@ -290,85 +197,51 @@ func handleLoginCode(w http.ResponseWriter, req *http.Request) {
 	if err := verifyContentType(w, req); err != nil {
 		return
 	}
-	// Decode & unmarshal JSON request body (stream) into requestBody struct.
-	if err := unmarshalJson(w, &requestBodyInst, req); err != nil {
+	// Decode & unmarshal JSON request body (stream) into ReqBody struct.
+	if err := unmarshalJson(w, &reqBody, req); err != nil {
 		return
 	}
-	// Decode & unmarshal ulid from string into userInst.UserId.
-	if err := unmarshalUlid(w, &userInst.UserId, requestBodyInst.UserId); err != nil {
+	// Decode & unmarshal ulid from string into user.UserId.
+	if err := unmarshalUlid(w, &user.UserId, reqBody.UserId); err != nil {
 		return
 	}
 
-	// Read authGroup. Write authGroup.loginAttempts.
-	err := db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("USER_AUTH"))
-		// Convert ulid to byte slice to use as db key.
-		binId, err := userInst.UserId.MarshalBinary()
-		if err != nil {
-			return err
-		}
-		// Retrieve authGroup.
-		authGrp := b.Get(binId)
-		if authGrp == nil {
-			return fmt.Errorf("authGroup does not exist for specified userId")
-		}
-		// Unmarshal authGrp into userInst.
-		err = json.Unmarshal(authGrp, &userInst.AuthGrp)
-		if err != nil {
-			return err
-		}
-		// If loginAttempts have been exceeded, return error.
-		if userInst.AuthGrp.LoginAttempts >= maxLoginCodeAttempts {
-			return fmt.Errorf("login attempts exceeded")
-		}
-		// Check loginCode and adust loginAttempts as necessary.
-		if userInst.AuthGrp.LoginCode == requestBodyInst.Code {
-			userInst.AuthGrp.LoginAttempts = 0
-		} else {
-			userInst.AuthGrp.LoginAttempts++
-		}
-		// Marshal authGroup to be stored.
-		agJs, err := json.Marshal(userInst.AuthGrp)
-		if err != nil {
-			return err
-		}
-		// Write loginAttempts back to db.
-		if err := b.Put(binId, agJs); err != nil {
-			return err
-		}
+	// Convert ulid to byte slice to use as db key.
+	binId, err := getBinId(w, user.UserId)
+	if err != nil {
+		return
+	}
 
-		return nil
-	})
-
-	// Handle database error.
+	// Execute db transaction.
+	err = user.loginCodeTx(binId, reqBody.Code)
 	if err != nil {
 		fmt.Printf("[err][api] updating db in login-code transaction: %v [%s]\n", err, cts())
 		sendErrorResponse(w, err, http.StatusInternalServerError)
 		return
 	}
 
-	responseBodyInst.RemainingAttempts = maxLoginCodeAttempts - userInst.AuthGrp.LoginAttempts
+	resBody.RemainingAttempts = user.calculateRemainingAttempts()
 
 	// Handle incorrect login code.
-	if userInst.AuthGrp.LoginCode != requestBodyInst.Code {
-		encodeJsonAndRespond(w, responseBodyInst)
+	if user.AuthGrp.LoginCode != reqBody.Code {
+		encodeJsonAndRespond(w, resBody)
 		return
 	}
 
 	// Success. Create and reply with token.
-	sessionInfo := fmt.Sprintf("%s.%s", strconv.Itoa(userInst.AuthGrp.LoginCode), userInst.AuthGrp.LogoutTs)
+	sessionInfo := fmt.Sprintf("%s.%s", strconv.Itoa(user.AuthGrp.LoginCode), user.AuthGrp.LogoutTs)
 	signedSessionInfo := signMessage(sessionInfo)
-	responseBodyInst.Token = fmt.Sprintf("%s.%s", userInst.UserId, signedSessionInfo)
+	resBody.Token = fmt.Sprintf("%s.%s", user.UserId, signedSessionInfo)
 
-	encodeJsonAndRespond(w, responseBodyInst)
+	encodeJsonAndRespond(w, resBody)
 }
 
 func handleLogout(w http.ResponseWriter, req *http.Request) {
-	type requestBody struct {
+	type ReqBody struct {
 		UserId string `json:"userId"`
 	}
-	var requestBodyInst requestBody
-	var userInst user
+	var reqBody ReqBody
+	var user *User = new(User)
 
 	fmt.Printf("[api] handling POST to %s [%s]\n", req.URL.Path, cts())
 
@@ -376,43 +249,31 @@ func handleLogout(w http.ResponseWriter, req *http.Request) {
 	if err := verifyContentType(w, req); err != nil {
 		return
 	}
-	// Decode & unmarshal JSON request body (stream) into requestBody struct.
-	if err := unmarshalJson(w, &requestBodyInst, req); err != nil {
+	// Decode & unmarshal JSON request body (stream) into ReqBody struct.
+	if err := unmarshalJson(w, &reqBody, req); err != nil {
 		return
 	}
-	// Decode & unmarshal ulid from string into userInst.UserId.
-	if err := unmarshalUlid(w, &userInst.UserId, requestBodyInst.UserId); err != nil {
+	// Decode & unmarshal ulid from string into user.UserId.
+	if err := unmarshalUlid(w, &user.UserId, reqBody.UserId); err != nil {
 		return
 	}
 
-	// Write loginCode and logoutTs.
-	err := db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("USER_AUTH"))
-		// Convert ulid to byte slice to use as db key.
-		binId, err := userInst.UserId.MarshalBinary()
-		if err != nil {
-			return err
-		}
-		// Explicitly set LoginAttempts to zero, even though they were reset
-		// during login-code validation, and even though the marshaling process
-		// would default to zero value anyway.
-		userInst.AuthGrp.LoginAttempts = 0
-		// Generate new login code and set logoutTs to now.
-		userInst.AuthGrp.LoginCode = generateLoginCode()
-		userInst.AuthGrp.LogoutTs = time.Now()
-		// Marshal authGroup to be stored.
-		agJs, err := json.Marshal(userInst.AuthGrp)
-		if err != nil {
-			return err
-		}
-		// Write authGroup back to db.
-		if err := b.Put(binId, agJs); err != nil {
-			return err
-		}
-		return nil
-	})
+	// Convert ulid to byte slice to use as db key.
+	binId, err := getBinId(w, user.UserId)
+	if err != nil {
+		return
+	}
 
-	// Handle database error.
+	// Explicitly set LoginAttempts to zero, even though they were reset
+	// during login-code validation, and even though the marshaling process
+	// would default to zero value anyway.
+	user.AuthGrp.LoginAttempts = 0
+	// Generate new login code and set logoutTs to now.
+	user.AuthGrp.LoginCode = generateLoginCode()
+	user.AuthGrp.LogoutTs = time.Now()
+
+	// Execute db transaction.
+	err = user.logoutTx(binId)
 	if err != nil {
 		fmt.Printf("[err][api] updating db in logout transaction: %v [%s]\n", err, cts())
 		sendErrorResponse(w, err, http.StatusInternalServerError)
