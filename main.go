@@ -25,13 +25,15 @@ func loadEnvVariables() {
 }
 
 func main() {
-	loadEnvVariables()
 
 	// Parse command line flag.
-	env = flag.String("env", "dev", "environment in which to run server (dev, prod)")
+	env = flag.String("env", "dev", "environment in which to run server (dev, e2e, prod)")
 	flag.Parse()
-	// TODO: Do something in production. Note use of guard against nil pointer.
-	// if env != nil && *env == "prod" { foobar() }
+
+	// Load environment variables in dev only. Guard pointer dereference.
+	if env != nil && *env == "dev" {
+		loadEnvVariables()
+	}
 
 	fmt.Printf("[api] main.go has PID: %v [%s]\n", os.Getpid(), cts())
 
