@@ -15,11 +15,11 @@ import (
 )
 
 func setPrivateKey() {
-	// Check for existence of private key file. Note, a different directory is
-	// used for e2e tests (run with cp-admin).
+	// Check for existence of private key file. Note, private key exists in a
+	// non-root directory when cp-api is run by cp-admin in an e2e test.
 	var err error
 	if env != nil && *env == "e2e" {
-		_, err = os.Stat("../cp.pem")
+		_, err = os.Stat("../../cp.pem")
 	} else {
 		_, err = os.Stat("cp.pem")
 	}
