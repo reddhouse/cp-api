@@ -13,6 +13,7 @@ type Admin struct {
 
 // Checks if AdminId exists in ADMIN_EMAIL bucket.
 func (a *Admin) adminMiddlewareTx() error {
+	fmt.Printf("[api][debug] adminID: %v [%s]\n", a.AdminId.String(), cts())
 	return db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("ADMIN_EMAIL"))
 		// Convert ulid to byte slice to use as db key.

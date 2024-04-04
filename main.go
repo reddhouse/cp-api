@@ -65,6 +65,7 @@ func main() {
 			// Generate ULID for Administrator #1.
 			adminOneId, adminOneBinId := createUlid()
 			fmt.Printf("[api] Hello Administrator! Your ID is: %v [%s]\n", adminOneId, cts())
+			fmt.Printf("[api][debug] AdminOneEmail: %v [%s]\n", os.Getenv("ADMINISTRATOR_ONE_EMAIL"), cts())
 			err := aeb.Put(adminOneBinId, []byte(os.Getenv("ADMINISTRATOR_ONE_EMAIL")))
 			if err != nil {
 				return err
