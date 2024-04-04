@@ -53,11 +53,10 @@ func main() {
 		}
 
 		// Write Administrator's ULID:email to db.
-		adminOneId, adminOneBinId, err := parseUlidString(os.Getenv("ADMIN_ONE_ULID"))
+		_, adminOneBinId, err := parseUlidString(os.Getenv("ADMIN_ONE_ULID"))
 		if err != nil {
 			return err
 		}
-		fmt.Printf("[api] Hello Administrator! Your ID is: %v, and the email on record is: %s [%s]\n", adminOneId, os.Getenv("ADMIN_ONE_EMAIL"), cts())
 		err = aeb.Put(adminOneBinId, []byte(os.Getenv("ADMIN_ONE_EMAIL")))
 		if err != nil {
 			return err
@@ -109,15 +108,15 @@ func main() {
 	mux.HandleFunc("GET /", ssrHome)
 	mux.HandleFunc("GET /exim/details/", ssrEximDetails)
 	mux.HandleFunc("GET /exim/create/", ssrCreateExim)
-	mux.HandleFunc("POST /exim/create/", authMiddleware(handleCreateExim))
-	mux.HandleFunc("POST /user/signup/", handleSignup)
-	mux.HandleFunc("POST /user/login/", handleLogin)
-	mux.HandleFunc("POST /user/login-code/", handleLoginCode)
-	mux.HandleFunc("POST /user/logout/", authMiddleware(handleLogout))
-	mux.HandleFunc("GET /admin/bypass-email/{ulid}", adminMiddleware(handleGetUserAuthGrp))
-	mux.HandleFunc("POST /admin/log-bucket-custom-key/{bucket}", adminMiddleware(handleLogBucketUlidValue))
-	mux.HandleFunc("POST /admin/log-bucket/{bucket}", adminMiddleware(handleLogBucketUlidKey))
-	mux.HandleFunc("POST /admin/shutdown/", adminMiddleware(func(w http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("POST /api/exim/create/", authMiddleware(handleCreateExim))
+	mux.HandleFunc("POST /api/user/signup/", handleSignup)
+	mux.HandleFunc("POST /api/user/login/", handleLogin)
+	mux.HandleFunc("POST /api/user/login-code/", handleLoginCode)
+	mux.HandleFunc("POST /api/user/logout/", authMiddleware(handleLogout))
+	mux.HandleFunc("GET /api/admin/bypass-email/{ulid}", adminMiddleware(handleGetUserAuthGrp))
+	mux.HandleFunc("POST /api/admin/log-bucket-custom-key/{bucket}", adminMiddleware(handleLogBucketUlidValue))
+	mux.HandleFunc("POST /api/admin/log-bucket/{bucket}", adminMiddleware(handleLogBucketUlidKey))
+	mux.HandleFunc("POST /api/admin/shutdown/", adminMiddleware(func(w http.ResponseWriter, req *http.Request) {
 		handleShutdownServer(w, req, server)
 	}))
 
