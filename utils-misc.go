@@ -17,12 +17,13 @@ import (
 func setPrivateKey() {
 	// Check for existence of private key file. Note, private key exists in a
 	// non-root directory when cp-api is run by cp-admin in an e2e test.
-	var err error
+	var pkPath string
 	if env != nil && *env == "e2e" {
-		_, err = os.Stat("../../cp.pem")
+		pkPath = "../../cp.pem"
 	} else {
-		_, err = os.Stat("cp.pem")
+		pkPath = "cp.pem"
 	}
+	_, err := os.Stat(pkPath)
 
 	// If the private key file does not exist, exit the program.
 	if os.IsNotExist(err) {
@@ -31,7 +32,7 @@ func setPrivateKey() {
 	} else {
 		// The private key file exists; read it and set global variable.
 		var privateKeyPEM []byte
-		privateKeyPEM, err := os.ReadFile("cp.pem")
+		privateKeyPEM, err := os.ReadFile(pkPath)
 		if err != nil {
 			fmt.Printf("[err][api] reading private key file: %v [%s]\n", err, cts())
 			os.Exit(1)
