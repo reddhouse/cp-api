@@ -57,7 +57,7 @@ func main() {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("[api] Hello Administrator! Your ID is: %v, and the email on record is: %s[%s]\n", adminOneId, os.Getenv("ADMIN_ONE_EMAIL"), cts())
+		fmt.Printf("[api] Hello Administrator! Your ID is: %v, and the email on record is: %s [%s]\n", adminOneId, os.Getenv("ADMIN_ONE_EMAIL"), cts())
 		err = aeb.Put(adminOneBinId, []byte(os.Getenv("ADMIN_ONE_EMAIL")))
 		if err != nil {
 			return err
