@@ -51,26 +51,18 @@ func main() {
 		if err != nil {
 			return err
 		}
-		// Check to see if at least one Administrator exists.
-		c := aeb.Cursor()
-		adminOneExists := false
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			if string(v) == os.Getenv("ADMINISTRATOR_ONE_EMAIL") {
-				adminOneExists = true
-				break
-			}
+
+		// Write Administrator's ULID:email to db.
+		adminOneId, adminOneBinId, err := parseUlidString(os.Getenv("ADMIN_ONE_ULID"))
+		if err != nil {
+			return err
 		}
-		// If no administrators, create one, log ULID, and persist to db.
-		if !adminOneExists {
-			// Generate ULID for Administrator #1.
-			adminOneId, adminOneBinId := createUlid()
-			fmt.Printf("[api] Hello Administrator! Your ID is: %v [%s]\n", adminOneId, cts())
-			fmt.Printf("[api][debug] AdminOneEmail: %v [%s]\n", os.Getenv("ADMINISTRATOR_ONE_EMAIL"), cts())
-			err := aeb.Put(adminOneBinId, []byte(os.Getenv("ADMINISTRATOR_ONE_EMAIL")))
-			if err != nil {
-				return err
-			}
+		fmt.Printf("[api] Hello Administrator! Your ID is: %v, and the email on record is: %s[%s]\n", adminOneId, os.Getenv("ADMIN_ONE_EMAIL"), cts())
+		err = aeb.Put(adminOneBinId, []byte(os.Getenv("ADMIN_ONE_EMAIL")))
+		if err != nil {
+			return err
 		}
+
 		if _, err := tx.CreateBucketIfNotExists([]byte("USER_EMAIL")); err != nil {
 			return err
 		}

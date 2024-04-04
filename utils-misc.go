@@ -12,6 +12,8 @@ import (
 	mathRand "math/rand"
 	"os"
 	"time"
+
+	"github.com/oklog/ulid"
 )
 
 func setPrivateKey() {
@@ -102,4 +104,24 @@ func generateLoginCode() int {
 func cts() string {
 	t := time.Now()
 	return fmt.Sprintf("%02d/%02d%02d%02d", t.Day(), t.Hour(), t.Minute(), t.Second())
+}
+
+func parseUlidString(ulidStr string) (ulid.ULID, []byte, error) {
+	var id ulid.ULID
+	var binId []byte
+	var err error
+
+	id, err = ulid.ParseStrict(ulidStr)
+	if err != nil {
+		err = fmt.Errorf("failed to parse ULID from string: %v", err)
+		return id, nil, err
+	}
+
+	binId, err = id.MarshalBinary()
+	if err != nil {
+		err = fmt.Errorf("failed to marshal ULID to binary: %v", err)
+		return id, nil, err
+	}
+
+	return id, binId, nil
 }
