@@ -15,8 +15,16 @@ import (
 )
 
 func setPrivateKey() {
+	// Check for existence of private key file. Note, a different directory is
+	// used for e2e tests (run with cp-admin).
+	var err error
+	if env != nil && *env == "e2e" {
+		_, err = os.Stat("../cp.pem")
+	} else {
+		_, err = os.Stat("cp.pem")
+	}
+
 	// If the private key file does not exist, exit the program.
-	_, err := os.Stat("cp.pem")
 	if os.IsNotExist(err) {
 		fmt.Printf("[err][api] private key file is not present; use cp-admin to generate and copy: %v [%s]\n", err, cts())
 		os.Exit(1)
