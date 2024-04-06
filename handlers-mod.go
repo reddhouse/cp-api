@@ -45,6 +45,7 @@ func handleCreateExim(w http.ResponseWriter, req *http.Request) {
 	id, binId := createUlid()
 
 	// Update instance fields.
+	exim.EximId = id
 	exim.Author = userId.String()
 	exim.IsApproved = false
 	exim.Target = reqBody.Target
@@ -63,8 +64,36 @@ func handleCreateExim(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	resBody.EximId = id.String()
+	resBody.EximId = exim.EximId.String()
 
 	// Success. Reply with userId.
 	encodeJsonAndRespond(w, resBody)
+}
+
+func handleGetEximDetails(w http.ResponseWriter, req *http.Request) {
+	fmt.Printf("[api] handling GET to %s [%s]\n", req.URL.Path, cts())
+	var exim *Exim = new(Exim)
+	eximId := req.PathValue("ulid")
+
+	// Decode & unmarshal ulid from string into exim.EximId.
+	if err := unmarshalUlid(w, &exim.EximId, eximId); err != nil {
+		return
+	}
+
+	// Convert ulid to byte slice to use as db key.
+	eximBinId, err := getBinId(w, exim.EximId)
+	if err != nil {
+		return
+	}
+
+	// Execute db transaction.
+	err = exim.getEximDetailsTx(eximBinId)
+	if err != nil {
+		fmt.Printf("[err][api] fetching exim details: %v [%s]\n", err, cts())
+		sendErrorResponse(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	// Success. Reply with exim details.
+	encodeJsonAndRespond(w, exim)
 }

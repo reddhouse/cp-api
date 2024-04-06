@@ -104,9 +104,19 @@ func main() {
 	}
 
 	// Register handler functions.
-	mux.Handle("GET /static/", http.StripPrefix("/static", fileServer))
+	// The mux.HandleFunc method takes the provided function and wraps it in a
+	// value of type http.HandlerFunc, which is a type that satisfies the
+	// http.Handler interface which requires a method with the signature
+	// ServeHTTP(http.ResponseWriter, *http.Request).
 	mux.HandleFunc("GET /", ssrHome)
+
+	// Since the fileServer is already pointed to the ./ui/static dir, when a
+	// request is made to /static/main.js (example) it should only search for
+	// the "/main.js" file, hence strip prefix.
+	mux.Handle("GET /static/", http.StripPrefix("/static", fileServer))
+
 	mux.HandleFunc("GET /exim/details/", ssrEximDetails)
+	mux.HandleFunc("GET /api/exim/{ulid}", handleGetEximDetails)
 	mux.HandleFunc("GET /exim/create/", ssrCreateExim)
 	mux.HandleFunc("POST /api/exim/create/", authMiddleware(handleCreateExim))
 	mux.HandleFunc("POST /api/user/signup/", handleSignup)
