@@ -1,0 +1,29 @@
+{{define "title"}}Exim ID: {{.EximId}}{{end}}
+
+{{define "main"}}
+<div>
+
+  <br />
+  <br />
+  <p>
+    <b>Experimental Improvement: {{.EximId}}</b>
+  </p>
+
+  <div><b>Title:</b></div>
+  <p>{{.Title}}</p>
+
+  <div><b>Summary:</b></div>
+  <p>{{.Summary}}</p>
+
+  <div><b>Details:</b></div>
+  <p>{{.Paragraph1}}</p>
+  <p>{{.Paragraph2}}</p>
+  <p>{{.Paragraph3}}</p>
+  <p><a href="{{.Link}}">{{.Link}}</a></p>
+
+  <div><b>Author: </b>{{.Author}}</div>
+  <br />
+  <br />
+
+</div>
+{{end}}

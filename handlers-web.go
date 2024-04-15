@@ -21,7 +21,7 @@ func ssrHome(w http.ResponseWriter, req *http.Request) {
 		"./ui/home.tmpl.html",
 	}
 
-	// Read the template file into a template set.
+	// Read the template files into a template set.
 	ts, err := template.ParseFiles(files...)
 	if err != nil {
 		fmt.Printf("[err][api] parsing template file: %v [%s]\n", err, cts())
@@ -41,7 +41,50 @@ func ssrHome(w http.ResponseWriter, req *http.Request) {
 }
 
 func ssrEximDetails(w http.ResponseWriter, req *http.Request) {
-	w.Write([]byte("Display a specific exim..."))
+	var exim *Exim = new(Exim)
+	eximId := req.PathValue("ulid")
+
+	// Decode & unmarshal ulid from string into exim.EximId.
+	if err := unmarshalUlid(w, &exim.EximId, eximId); err != nil {
+		return
+	}
+
+	// Convert ulid to byte slice to use as db key.
+	eximBinId, err := getBinId(w, exim.EximId)
+	if err != nil {
+		return
+	}
+
+	// Execute db transaction.
+	err = exim.getEximDetailsTx(eximBinId)
+	if err != nil {
+		fmt.Printf("[err][api] fetching exim details: %v [%s]\n", err, cts())
+		sendErrorResponse(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	// Keep "base" template as first file in the slice.
+	files := []string{
+		"./ui/base.tmpl.html",
+		"./ui/partial-nav.tmpl.html",
+		"./ui/exim-view.tmpl.html",
+	}
+
+	// Read the template files into a template set.
+	ts, err := template.ParseFiles(files...)
+	if err != nil {
+		fmt.Printf("[err][api] parsing template file: %v [%s]\n", err, cts())
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Use the ExecuteTemplate() method to write the content of the "base"
+	// template as the response body. Pass in exim struct as data.
+	err = ts.ExecuteTemplate(w, "base", exim)
+	if err != nil {
+		fmt.Printf("[err][api] executing template: %v [%s]\n", err, cts())
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 func ssrCreateExim(w http.ResponseWriter, req *http.Request) {

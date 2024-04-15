@@ -116,7 +116,7 @@ func main() {
 	mux.Handle("GET /static/", http.StripPrefix("/static", fileServer))
 
 	mux.HandleFunc("GET /api/exims", handleGetExims)
-	mux.HandleFunc("GET /exim/details/", ssrEximDetails)
+	mux.HandleFunc("GET /exim/details/{ulid}", ssrEximDetails)
 	mux.HandleFunc("GET /api/exim/{ulid}", handleGetEximDetails)
 	mux.HandleFunc("GET /exim/create/", ssrCreateExim)
 	mux.HandleFunc("POST /api/exim/create/", authMiddleware(handleCreateExim))
