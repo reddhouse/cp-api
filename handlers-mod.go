@@ -70,6 +70,26 @@ func handleCreateExim(w http.ResponseWriter, req *http.Request) {
 	encodeJsonAndRespond(w, resBody)
 }
 
+func handleGetExims(w http.ResponseWriter, req *http.Request) {
+	type ResBody struct {
+		Exims Exims `json:"exims"`
+	}
+	var resBody ResBody
+
+	fmt.Printf("[api] handling GET to %s [%s]\n", req.URL.Path, cts())
+
+	// Execute db transaction.
+	err := resBody.Exims.getEximsTx()
+	if err != nil {
+		fmt.Printf("[err][api] fetching exims: %v [%s]\n", err, cts())
+		sendErrorResponse(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	// Success. Reply with exims.
+	encodeJsonAndRespond(w, resBody)
+}
+
 func handleGetEximDetails(w http.ResponseWriter, req *http.Request) {
 	fmt.Printf("[api] handling GET to %s [%s]\n", req.URL.Path, cts())
 	var exim *Exim = new(Exim)

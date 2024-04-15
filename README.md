@@ -1,3 +1,3 @@
 # cp-api
 
-The API for the Cooperative Party web client.
+API for the Cooperative Party web client.

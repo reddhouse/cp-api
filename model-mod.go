@@ -21,6 +21,8 @@ type Exim struct {
 	Link       string    `json:"link"`
 }
 
+type Exims []Exim
+
 // Writes Exim to db.
 func (e *Exim) createEximTx(binId []byte) error {
 	// Marshal Exim to be stored.
@@ -39,6 +41,28 @@ func (e *Exim) createEximTx(binId []byte) error {
 		}
 
 		return nil
+	})
+}
+
+func (e *Exims) getEximsTx() error {
+	return db.View(func(tx *bolt.Tx) error {
+		// Retrieve bucket.
+		eb := tx.Bucket([]byte("MOD_EXIM"))
+
+		// Iterate over exims.
+		return eb.ForEach(func(k, v []byte) error {
+			// Unmarshal value to Exim.
+			var exim Exim
+			err := json.Unmarshal(v, &exim)
+			if err != nil {
+				return err
+			}
+
+			// Append to slice.
+			*e = append(*e, exim)
+
+			return nil
+		})
 	})
 }
 
